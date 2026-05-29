@@ -2,7 +2,7 @@
 
 # TTS Middleware
 
-*Provider-agnostic Text-to-Speech middleware with **GDPR compliance** support. Currently supports Azure Speech Services, EdenAI, Google Cloud TTS, Fish Audio, Inworld AI, and Vertex AI TTS. Features EU data residency via Azure and Google Cloud, pluggable logging, character-based billing, and comprehensive error handling.*
+*Provider-agnostic Text-to-Speech middleware with **GDPR compliance** support. Currently supports Azure Speech Services (incl. Dragon HD), Cartesia Sonic, EdenAI, Google Cloud TTS, Fish Audio, Inworld AI, and Vertex AI TTS. Features EU data residency via Azure, Cartesia, and Google Cloud, pluggable logging, character-based billing, and comprehensive error handling.*
 
 <!-- Horizontal Badge Navigation Bar -->
 [![npm version](https://img.shields.io/npm/v/@loonylabs/tts-middleware.svg?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@loonylabs/tts-middleware)
@@ -38,14 +38,15 @@
 ## Features
 
 - **Multi-Provider Architecture**: Unified API for all TTS providers
-  - **Azure Speech Services** (MVP): Neural voices with emotion/style, EU regions
+  - **Azure Speech Services** (MVP): Neural voices + **Dragon HD / HD Omni** (LLM-based, emotion/style/temperature), EU regions
+  - **Cartesia Sonic**: Sonic 3/3.5 high-quality low-latency voices, **EU data residency by default**, sentence/paragraph pause control
   - **EdenAI**: Aggregator with access to Google, OpenAI, Amazon, IBM, ElevenLabs
   - **Google Cloud TTS**: Neural2, WaveNet, Studio voices with EU data residency
   - **Fish Audio**: S1 model with 13 languages & 64+ emotions (test/admin only)
   - **Inworld AI**: TTS 1.5 Max/Mini with 15 languages & voice cloning (test/admin only)
   - **Vertex AI TTS**: Gemini Flash/Pro models with 30 voices, 90+ languages & style prompts (test/admin only)
   - **Ready for:** OpenAI, ElevenLabs, Deepgram (interfaces prepared)
-- **GDPR/DSGVO Compliance**: Built-in EU region support for Azure and Google Cloud
+- **GDPR/DSGVO Compliance**: Built-in EU region support for Azure, Cartesia, and Google Cloud
 - **SSML Abstraction**: Auto-generates provider-specific SSML from simple JSON options
 - **Character Billing**: Accurate character counting for cost calculation
 - **Pluggable Logger**: Bring your own logger (Winston, Pino, etc.) or use the built-in console logger
@@ -97,6 +98,23 @@ const azure = await ttsService.synthesize({
   provider: TTSProvider.AZURE,
   voice: { id: 'en-US-JennyNeural' },
   providerOptions: { emotion: 'cheerful', style: 'chat' },
+});
+
+// Azure Dragon HD (EU-resident, LLM-based, best dialog emphasis)
+const azureHd = await ttsService.synthesize({
+  text: 'Behutsam öffnete Leah das Fenster.',
+  provider: TTSProvider.AZURE,
+  voice: { id: 'de-DE-Seraphina:DragonHDLatestNeural' },
+  providerOptions: { temperature: 0.8 }, // HD voices: temperature, not prosody
+});
+
+// Cartesia Sonic (EU data residency by default, narration-tuned)
+const cartesia = await ttsService.synthesize({
+  text: 'Behutsam öffnete Leah das Fenster.\n\n"Lumi? Was ist passiert?"',
+  provider: TTSProvider.CARTESIA,
+  voice: { id: '38aabb6a-f52b-4fb0-a3d1-988518f4dc06' },
+  audio: { format: 'mp3', sampleRate: 44100, speed: 0.9 },
+  providerOptions: { language: 'de', sentencePauseMs: 300, paragraphPauseMs: 700 },
 });
 
 // Google Cloud TTS (EU-compliant)
@@ -257,7 +275,15 @@ TTS_DEFAULT_PROVIDER=azure
 
 # Azure Speech Services (EU-compliant)
 AZURE_SPEECH_KEY=your-azure-speech-key
-AZURE_SPEECH_REGION=germanywestcentral
+# Use westeurope for Dragon HD voices (germanywestcentral has no HD voices)
+AZURE_SPEECH_REGION=westeurope
+
+# Cartesia Sonic (EU data residency by default)
+CARTESIA_API_KEY=sk_car_your-key
+# Optional overridable narration defaults (per-request options always win):
+# CARTESIA_DEFAULT_SPEED=0.9
+# CARTESIA_DEFAULT_SENTENCE_PAUSE_MS=300
+# CARTESIA_DEFAULT_PARAGRAPH_PAUSE_MS=700
 
 # EdenAI (multi-provider aggregator)
 EDENAI_API_KEY=your-edenai-api-key
@@ -290,13 +316,14 @@ LOG_LEVEL=info
 
 | Feature | Details |
 |---------|---------|
-| **Voices** | 180+ neural voices |
+| **Voices** | 180+ neural voices, incl. **Dragon HD** & **Dragon HD Omni** (LLM-based) |
 | **Languages** | 100+ locales |
-| **Emotions** | cheerful, sad, angry, friendly, etc. |
+| **Emotions** | cheerful, sad, angry, friendly, etc. (Omni: free-text styles) |
 | **Styles** | chat, newscast, customerservice, etc. |
+| **HD control** | `temperature` (HD); `topP`/`cfgScale` (Omni). No `prosody` on HD voices |
 | **Audio** | MP3, WAV, Opus |
-| **EU Region** | germanywestcentral (Frankfurt) |
-| **Pricing** | ~$16/1M characters |
+| **EU Region** | West Europe (Dragon HD: eastus / westeurope / southeastasia) |
+| **Pricing** | ~$16/1M chars (standard), ~$22/1M chars (HD) |
 
 ### Google Cloud TTS
 
@@ -307,6 +334,19 @@ LOG_LEVEL=info
 | **Audio** | MP3, WAV, Opus |
 | **EU Regions** | eu, europe-west1 through europe-west9 |
 | **Pricing** | ~$16/1M characters |
+
+### Cartesia Sonic
+
+| Feature | Details |
+|---------|---------|
+| **Models** | sonic-3.5 (default), sonic-3, sonic-latest |
+| **Languages** | German + many others (`language` option, omit to auto-detect) |
+| **Voices** | Referenced by voice ID (UUID); list via `scripts/list-cartesia-voices.ts` |
+| **Control** | `audio.speed` (0.6–1.5), `sentencePauseMs` / `paragraphPauseMs` (insert `<break>`), `emotion` |
+| **Defaults** | Overridable via `CARTESIA_DEFAULT_*` env vars; per-request options always win |
+| **Audio** | MP3 (up to 44.1 kHz), WAV |
+| **Pricing** | ~$30/1M characters |
+| **EU Compliance** | ✅ EU data residency by default, GDPR DPA |
 
 ### EdenAI (Aggregator)
 
@@ -443,7 +483,8 @@ timing. See [Request Debug Logging](#advanced-features) below.
 
 | Provider | DPA | GDPR | EU Data Residency | Notes |
 |----------|-----|------|-------------------|-------|
-| **Azure** | Yes | Yes | Yes (Frankfurt) | Recommended for EU |
+| **Azure** | Yes | Yes | Yes (West Europe) | Recommended for EU; Dragon HD available |
+| **Cartesia** | Yes | Yes | Yes (EU by default) | High quality, low latency |
 | **Google Cloud** | Yes | Yes | Yes (EU multi-region) | Full EU endpoint support |
 | **EdenAI** | Yes | Depends* | Depends* | Depends on underlying provider |
 | **Fish Audio** | No | No | No | Test/admin only |
@@ -676,6 +717,7 @@ graph TD
     Service -->|getProvider()| Registry{Provider Registry}
 
     Registry -->|Select| Azure[AzureProvider]
+    Registry -->|Select| Cartesia[CartesiaProvider]
     Registry -->|Select| GCloud[GoogleCloudTTSProvider]
     Registry -->|Select| Eden[EdenAIProvider]
     Registry -->|Select| Fish[FishAudioProvider]
@@ -683,6 +725,7 @@ graph TD
     Registry -->|Select| VertexAI[VertexAITTSProvider]
 
     Azure -->|SSML/SDK| AzureAPI[Azure Speech API]
+    Cartesia -->|REST| CartesiaAPI[Cartesia Sonic API]
     GCloud -->|gRPC/SDK| GoogleAPI[Google Cloud TTS API]
     Eden -->|REST| EdenAPI[EdenAI API]
     Fish -->|REST| FishAPI[Fish Audio API]

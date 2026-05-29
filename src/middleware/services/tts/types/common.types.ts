@@ -27,6 +27,7 @@ export enum TTSProvider {
   FISH_AUDIO = 'fish_audio',
   INWORLD = 'inworld',
   VERTEX_AI = 'vertex_ai',
+  CARTESIA = 'cartesia',
 }
 
 /**

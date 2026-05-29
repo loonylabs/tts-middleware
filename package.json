@@ -1,7 +1,7 @@
 {
   "name": "@loonylabs/tts-middleware",
-  "version": "0.12.3",
-  "description": "Provider-agnostic Text-to-Speech middleware for Azure, OpenAI, ElevenLabs, Google Cloud, Deepgram, Fish Audio, Inworld AI, and Vertex AI TTS",
+  "version": "0.13.0",
+  "description": "Provider-agnostic Text-to-Speech middleware for Azure (incl. Dragon HD), Cartesia Sonic, OpenAI, ElevenLabs, Google Cloud, Deepgram, Fish Audio, Inworld AI, and Vertex AI TTS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -28,6 +28,9 @@
     "tts",
     "text-to-speech",
     "azure",
+    "dragon-hd",
+    "cartesia",
+    "sonic",
     "openai",
     "elevenlabs",
     "google-cloud",
