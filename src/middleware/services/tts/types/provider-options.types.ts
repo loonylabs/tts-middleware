@@ -64,7 +64,13 @@ export interface AzureProviderOptions {
    *          'narration-relaxed', 'sports-commentary',
    *          'sports-commentary-excited'
    *
+   * For **Dragon HD Omni** voices (`:DragonHDOmniLatestNeural`) this may also be
+   * a free-text natural-language style description (e.g. `'warm bedtime
+   * storytelling'`). Plain DragonHD voices ignore styles entirely (use
+   * `temperature` instead).
+   *
    * @example 'chat'
+   * @example 'warm, tender bedtime storytelling' // Dragon HD Omni only
    */
   style?:
     | 'chat'
@@ -79,7 +85,11 @@ export interface AzureProviderOptions {
     | 'narration-professional'
     | 'narration-relaxed'
     | 'sports-commentary'
-    | 'sports-commentary-excited';
+    | 'sports-commentary-excited'
+    // Allow arbitrary free-text styles (Dragon HD Omni) while keeping the
+    // predefined values as autocomplete hints.
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    | (string & {});
 
   /**
    * Style intensity/degree (0.01 to 2.0)
@@ -97,6 +107,42 @@ export interface AzureProviderOptions {
    * @options 'YoungAdultFemale', 'YoungAdultMale', 'OlderAdultFemale', 'OlderAdultMale', 'Girl', 'Boy'
    */
   role?: string;
+
+  /**
+   * Output variation for **HD voices** (`:DragonHDLatestNeural` /
+   * `:DragonHDOmniLatestNeural`).
+   * @MVP ✅ Implemented (HD voices only)
+   *
+   * @description Emitted as the `temperature` value of the `<voice parameters="…">`
+   * attribute. Lower = more stable/predictable delivery, higher = more
+   * expressive variation. Ignored for standard neural voices.
+   *
+   * @range 0 - 1 (Dragon HD default 1.0; Omni default 0.7)
+   * @example 0.8
+   */
+  temperature?: number;
+
+  /**
+   * Nucleus-sampling diversity for **Dragon HD Omni** voices.
+   * @MVP ✅ Implemented (HD voices only)
+   *
+   * @description Emitted as `top_p` in the `<voice parameters="…">` attribute.
+   * Cartesia/Omni recommend keeping `topP` ≈ `temperature`.
+   *
+   * @range 0.3 - 1.0
+   */
+  topP?: number;
+
+  /**
+   * Classifier-free-guidance scale for **Dragon HD Omni** voices.
+   * @MVP ✅ Implemented (HD voices only)
+   *
+   * @description Emitted as `cfg_scale` in the `<voice parameters="…">`
+   * attribute. Higher = faster speech with stronger contextual relevance.
+   *
+   * @range 1.0 - 2.0
+   */
+  cfgScale?: number;
 }
 
 /**
@@ -803,6 +849,90 @@ export interface SynthesizeDialogRequest {
 }
 
 /**
+ * Cartesia TTS provider options
+ *
+ * @provider Cartesia Sonic TTS API
+ * @description Cartesia Sonic (3 / 3.5) — high-quality, low-latency, expressive
+ * voices. EU data residency by default with a GDPR-aligned DPA.
+ *
+ * Speaking speed is controlled via the universal `audio.speed` option (a
+ * multiplier, clamped to Cartesia's 0.6–1.5 range). Pauses between sentences
+ * are inserted automatically when `sentencePauseMs` is set — useful because
+ * Sonic tends to run sentences together.
+ *
+ * @see https://docs.cartesia.ai/api-reference/tts/bytes
+ * @see https://docs.cartesia.ai/build-with-cartesia/capability-guides/ssml-tags
+ *
+ * @example
+ * ```typescript
+ * // Slightly slower narration with natural sentence spacing:
+ * await ttsService.synthesize({
+ *   text: '...',
+ *   provider: TTSProvider.CARTESIA,
+ *   voice: { id: '38aabb6a-f52b-4fb0-a3d1-988518f4dc06' },
+ *   audio: { format: 'mp3', sampleRate: 44100, speed: 0.9 },
+ *   providerOptions: {
+ *     model: 'sonic-3.5',
+ *     language: 'de',
+ *     sentencePauseMs: 300,
+ *     paragraphPauseMs: 700,
+ *   },
+ * });
+ * ```
+ */
+export interface CartesiaProviderOptions {
+  /**
+   * Cartesia model ID.
+   *
+   * @options 'sonic-3.5', 'sonic-3', 'sonic-latest'
+   * @default 'sonic-3.5'
+   */
+  model?: string;
+
+  /**
+   * Language code Cartesia should synthesize in (e.g. 'de', 'en').
+   *
+   * @description If omitted, Cartesia auto-detects the language from the text.
+   * Set it explicitly for reliable pronunciation.
+   *
+   * @example 'de'
+   */
+  language?: string;
+
+  /**
+   * Inserts a pause (`<break time="...ms"/>`) after each sentence boundary.
+   *
+   * @description Sonic tends to run sentences together. A small value adds
+   * natural spacing between sentences. Inserted only at real sentence
+   * boundaries (sentence-ending punctuation followed by a new sentence);
+   * mid-dialogue punctuation is left untouched. Set to 0 / omit to disable.
+   *
+   * @range 0 - ~2000 (milliseconds)
+   * @example 300
+   * @default undefined (no pauses inserted)
+   */
+  sentencePauseMs?: number;
+
+  /**
+   * Inserts a longer pause at paragraph boundaries (blank lines).
+   *
+   * @description Only applies when `sentencePauseMs` is set. Defaults to twice
+   * `sentencePauseMs` when omitted.
+   *
+   * @example 700
+   */
+  paragraphPauseMs?: number;
+
+  /**
+   * Emotion tags forwarded to Cartesia's `generation_config.emotion`.
+   *
+   * @description Beta feature; effect varies by voice/language.
+   * @example ['positivity:high', 'curiosity']
+   */
+  emotion?: string[];
+}
+
+/**
  * Union type of all provider options
  *
  * @description Use this type when you need to accept any provider options
@@ -816,7 +946,8 @@ export type ProviderOptions =
   | EdenAIProviderOptions
   | FishAudioProviderOptions
   | InworldProviderOptions
-  | VertexAITTSProviderOptions;
+  | VertexAITTSProviderOptions
+  | CartesiaProviderOptions;
 
 /**
  * Type guard to check if options are for Azure
@@ -950,5 +1081,22 @@ export function isVertexAITTSOptions(
       ('model' in options &&
         typeof (options as { model: unknown }).model === 'string' &&
         (options as { model: string }).model.startsWith('gemini-')))
+  );
+}
+
+/**
+ * Type guard to check if options are for Cartesia
+ */
+export function isCartesiaOptions(
+  options: unknown
+): options is CartesiaProviderOptions {
+  return (
+    typeof options === 'object' &&
+    options !== null &&
+    ('sentencePauseMs' in options ||
+      'paragraphPauseMs' in options ||
+      ('model' in options &&
+        typeof (options as { model: unknown }).model === 'string' &&
+        (options as { model: string }).model.startsWith('sonic')))
   );
 }

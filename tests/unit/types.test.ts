@@ -36,11 +36,14 @@ describe('TTSProvider enum', () => {
     expect(TTSProvider.GOOGLE).toBe('google');
     expect(TTSProvider.DEEPGRAM).toBe('deepgram');
     expect(TTSProvider.FISH_AUDIO).toBe('fish_audio');
+    expect(TTSProvider.INWORLD).toBe('inworld');
+    expect(TTSProvider.VERTEX_AI).toBe('vertex_ai');
+    expect(TTSProvider.CARTESIA).toBe('cartesia');
   });
 
-  test('has exactly 9 providers', () => {
+  test('has exactly 10 providers', () => {
     const providerKeys = Object.keys(TTSProvider);
-    expect(providerKeys).toHaveLength(9);
+    expect(providerKeys).toHaveLength(10);
   });
 
   test('enum values are lowercase strings', () => {

@@ -35,15 +35,26 @@ These parameters are passed via `providerOptions: Record<string, unknown>` in th
 
 | Parameter | Status | Type | Range/Options | Description |
 |-----------|--------|------|---------------|-------------|
-| **emotion** | ✅ MVP | string | 'sad', 'angry', 'cheerful', 'friendly', etc. | Emotional tone of speech |
-| **style** | ✅ MVP | string | 'chat', 'customerservice', 'newscast', 'assistant', etc. | Speaking style |
+| **emotion** | ✅ MVP | string | 'sad', 'angry', 'cheerful', 'friendly', etc. | Emotional tone of speech (standard neural + Omni) |
+| **style** | ✅ MVP | string | predefined style **or** free-text (Omni) | Speaking style. Free-text descriptions work on Dragon HD Omni only |
+| **temperature** | ✅ | number | 0 - 1 | HD voices only. Output variation (low = stable, high = expressive) |
+| **topP** | ✅ | number | 0.3 - 1.0 | Dragon HD Omni only. Nucleus-sampling diversity (`top_p`) |
+| **cfgScale** | ✅ | number | 1.0 - 2.0 | Dragon HD Omni only. Classifier-free-guidance (`cfg_scale`) |
 | **styleDegree** | 🔮 Future | number | 0.01 - 2.0 | Style intensity |
 | **role** | 🔮 Future | string | 'YoungAdultFemale', 'Boy', etc. | Role play scenario |
 
-**Implementation Status**: MVP (emotion, style implemented)
-**Billing Model**: Character-based (~$16 per 1M characters)
-**Free Tier**: 500,000 characters/month
-**EU Compliance**: ✅ (germanywestcentral region)
+**Voice tiers (German example)**:
+- **Standard Neural** — e.g. `de-DE-KatjaNeural` (baseline)
+- **Multilingual Neural** — e.g. `de-DE-SeraphinaMultilingualNeural`
+- **Dragon HD** — e.g. `de-DE-Seraphina:DragonHDLatestNeural` (LLM-based; best dialog emphasis; controlled via `temperature` + text semantics — **no** `express-as`/`prosody`)
+- **Dragon HD Omni** — e.g. `de-DE-Seraphina:DragonHDOmniLatestNeural` (supports `express-as` incl. free-text `style`, `temperature`/`topP`/`cfgScale`)
+
+> HD/Omni voices reject `<prosody>` — the provider automatically omits it for `:DragonHD*` voices. `audio.speed` therefore has no effect on HD voices.
+
+**Implementation Status**: MVP (emotion, style, HD temperature/topP/cfgScale implemented)
+**Billing Model**: Character-based (~$16 per 1M chars standard, ~$22 per 1M chars HD)
+**Free Tier**: 500,000 characters/month (HD voices available on F0)
+**EU Compliance**: ✅ (West Europe region; Dragon HD requires eastus/westeurope/southeastasia)
 
 ---
 
@@ -173,6 +184,41 @@ providerOptions: {
 **Languages**: 13 with auto-detection (EN, DE, FR, ES, JA, ZH, KO, AR, RU, NL, IT, PL, PT)
 **Voices**: Community voice library + custom voice cloning
 **Emotions**: 64+ expressions via text markers (e.g., `(excited)`, `(sad)`, `(whispering)`)
+
+---
+
+### Cartesia Sonic (✅ Implemented – EU resident)
+
+Passed via `providerOptions`. Speaking speed uses the universal `audio.speed`.
+
+| Parameter | Status | Type | Range/Options | Description |
+|-----------|--------|------|---------------|-------------|
+| **model** | ✅ | string | 'sonic-3.5', 'sonic-3', 'sonic-latest' | Cartesia model (default 'sonic-3.5') |
+| **language** | ✅ | string | 'de', 'en', … | Synthesis language; omit to auto-detect |
+| **sentencePauseMs** | ✅ | number | e.g. 300 | Inserts `<break>` between sentences (Sonic runs sentences together otherwise). 0/omit = off |
+| **paragraphPauseMs** | ✅ | number | e.g. 700 | Pause at blank-line paragraph breaks (defaults to 2× sentencePauseMs) |
+| **emotion** | ✅ | string[] | e.g. `['positivity:high']` | Forwarded to `generation_config.emotion` (beta) |
+| **audio.speed** (universal) | ✅ | number | 0.6 – 1.5 (clamped) | Speaking-rate multiplier (1.0 = default) |
+
+**Overridable defaults**: When a request omits `audio.speed` / `sentencePauseMs` /
+`paragraphPauseMs`, the provider applies defaults from the constructor config or
+these env vars (per-request values always override them):
+
+| Env var | Maps to |
+|---------|---------|
+| `CARTESIA_DEFAULT_SPEED` | `audio.speed` |
+| `CARTESIA_DEFAULT_SENTENCE_PAUSE_MS` | `sentencePauseMs` |
+| `CARTESIA_DEFAULT_PARAGRAPH_PAUSE_MS` | `paragraphPauseMs` |
+
+When none are set, the provider is neutral (no speed change, no pauses).
+
+**Implementation Status**: Implemented
+**Billing Model**: Character-based (~$30 per 1M characters)
+**EU Compliance**: ✅ (EU data residency by default, GDPR DPA)
+**Output**: mp3 (128 kbps) / wav, up to 44.1 kHz
+**Voices**: Referenced by Cartesia voice ID (UUID). List German voices via
+`scripts/list-cartesia-voices.ts`. Recommended narration default: `speed 0.9`,
+`sentencePauseMs 300`, `paragraphPauseMs 700`.
 
 ---
 

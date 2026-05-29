@@ -10,6 +10,7 @@
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import type { TTSSynthesizeRequest, TTSResponse, AudioFormat } from '../types';
 import { TTSProvider } from '../types';
+import type { AzureProviderOptions } from '../types/provider-options.types';
 import { getMp3Duration } from '../utils/mp3-duration.utils';
 import {
   BaseTTSProvider,
@@ -178,8 +179,15 @@ export class AzureProvider extends BaseTTSProvider {
         ssmlLength: ssml.length,
       });
 
-      // Create synthesizer
-      const synthesizer = new sdk.SpeechSynthesizer(this.speechConfig);
+      // Create synthesizer.
+      //
+      // IMPORTANT: pass `null` as the AudioConfig. When it is omitted, the
+      // Speech SDK defaults to the system speaker output, which is a browser
+      // construct. In Node.js / server contexts that initialization fails
+      // silently — the synthesis callbacks never fire and the process exits
+      // with no audio. Passing `null` routes the audio into `result.audioData`
+      // (an in-memory buffer) without touching any audio device.
+      const synthesizer = new sdk.SpeechSynthesizer(this.speechConfig, null);
 
       // Synthesize speech
       const audioBuffer = await this.synthesizeSSML(synthesizer, ssml);
@@ -313,43 +321,74 @@ export class AzureProvider extends BaseTTSProvider {
     voiceId: string,
     request: TTSSynthesizeRequest
   ): string {
-    // Extract language from voice ID (e.g., "en-US-JennyNeural" -> "en-US")
+    // Extract language from voice ID. Standard: "en-US-JennyNeural" -> "en-US".
+    // HD voices use "de-DE-Seraphina:DragonHDOmniLatestNeural" — slicing the
+    // first two dash-separated segments still yields the locale ("de-DE").
     const language = voiceId.split('-').slice(0, 2).join('-');
 
-    // Extract provider options
-    const emotion = (request.providerOptions?.emotion as string) || null;
-    const style = (request.providerOptions?.style as string) || null;
+    // HD voice detection. Dragon HD and Dragon HD Omni are LLM-based models
+    // with a different SSML feature set than standard neural voices:
+    //   - <prosody> is NOT supported (rate/pitch are ignored or rejected).
+    //   - <mstts:express-as> is supported only by Omni (plain DragonHD ignores it).
+    //   - Variation is instead controlled via the `parameters` attribute
+    //     (temperature, top_p, cfg_scale) on the <voice> element.
+    const isHd = /:DragonHD/i.test(voiceId);
+    const isOmni = /:DragonHDOmni/i.test(voiceId);
+
+    const opts = (request.providerOptions ?? {}) as AzureProviderOptions;
+    const emotion = opts.emotion || null;
+    const style = opts.style || emotion;
+    const temperature = opts.temperature;
+    const topP = opts.topP;
+    const cfgScale = opts.cfgScale;
     const speed = request.audio?.speed || 1.0;
 
     // Escape XML special characters
     const escapedText = this.escapeXML(text);
 
-    // Build SSML
-    let ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${language}">`;
-    ssml += `<voice name="${voiceId}">`;
+    // HD tuning parameters (only meaningful for HD voices)
+    const params: string[] = [];
+    if (isHd) {
+      if (typeof temperature === 'number') params.push(`temperature=${temperature}`);
+      if (typeof topP === 'number') params.push(`top_p=${topP}`);
+      if (typeof cfgScale === 'number') params.push(`cfg_scale=${cfgScale}`);
+    }
+    const paramAttr = params.length ? ` parameters="${params.join(';')}"` : '';
 
-    // Add style/emotion if provided (Azure-specific)
-    if (style || emotion) {
-      const expressAs = style || emotion;
-      ssml += `<mstts:express-as style="${expressAs}">`;
+    // express-as is honored for standard neural voices and for Omni (which also
+    // accepts free-text style descriptions). Plain DragonHD does not support it.
+    const useExpressAs = !!style && (!isHd || isOmni);
+    if (style && isHd && !isOmni) {
+      this.log(
+        'warn',
+        'express-as style ignored: plain DragonHD voices do not support styles. Use a DragonHDOmni voice or the `temperature` option instead.',
+        { voiceId, style }
+      );
     }
 
-    // Add prosody for speed control
-    const rateValue = this.speedToProsodyRate(speed);
-    ssml += `<prosody rate="${rateValue}">`;
+    // Build SSML
+    let ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${language}">`;
+    ssml += `<voice name="${voiceId}"${paramAttr}>`;
 
-    // Add text
+    if (useExpressAs && style) {
+      ssml += `<mstts:express-as style="${this.escapeXML(style)}">`;
+    }
+
+    // <prosody> is only emitted for standard neural voices; HD voices reject it.
+    if (!isHd) {
+      const rateValue = this.speedToProsodyRate(speed);
+      ssml += `<prosody rate="${rateValue}">`;
+    }
+
     ssml += escapedText;
 
-    // Close prosody
-    ssml += `</prosody>`;
-
-    // Close express-as if used
-    if (style || emotion) {
+    if (!isHd) {
+      ssml += `</prosody>`;
+    }
+    if (useExpressAs && style) {
       ssml += `</mstts:express-as>`;
     }
 
-    // Close voice and speak
     ssml += `</voice>`;
     ssml += `</speak>`;
 

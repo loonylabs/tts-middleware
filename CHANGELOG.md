@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-05-30
+
+### Added
+- **Cartesia Sonic provider** (`TTSProvider.CARTESIA`) — high-quality, low-latency
+  voices with **EU data residency by default** and a GDPR-aligned DPA. Synthesizes
+  via Cartesia's `POST /tts/bytes` endpoint (Sonic 3 / 3.5), voices referenced by
+  voice ID, MP3/WAV up to 44.1 kHz.
+  - **Sentence/paragraph pause control** — `sentencePauseMs` / `paragraphPauseMs`
+    insert Cartesia `<break>` tags at sentence and paragraph boundaries (Sonic
+    otherwise runs sentences together). Dialog-safe: mid-dialogue punctuation is
+    left untouched.
+  - **Speaking-speed control** via the universal `audio.speed` (clamped to
+    Cartesia's 0.6–1.5 range).
+  - **Overridable defaults** — `CARTESIA_DEFAULT_SPEED`,
+    `CARTESIA_DEFAULT_SENTENCE_PAUSE_MS`, `CARTESIA_DEFAULT_PARAGRAPH_PAUSE_MS`
+    (or constructor `defaults`) apply when a request omits the value; per-request
+    options always override them. No values are hardcoded in the middleware.
+  - New exports: `CartesiaProvider`, `CartesiaProviderOptions`, `isCartesiaOptions`.
+  - Helper scripts: `scripts/list-cartesia-voices.ts`, `scripts/manual-test-cartesia.ts`.
+- **Azure Dragon HD / Dragon HD Omni support** — HD voices
+  (`:DragonHDLatestNeural`, `:DragonHDOmniLatestNeural`) are now first-class:
+  - New `AzureProviderOptions`: `temperature` (HD), `topP` / `cfgScale` (Omni),
+    emitted via the `<voice parameters="…">` attribute.
+  - `style` widened to accept free-text natural-language descriptions for Dragon
+    HD Omni voices.
+  - SSML generation is now voice-type aware: `<prosody>` is omitted for HD voices
+    (which reject it), and `<mstts:express-as>` is only emitted for standard
+    neural or Omni voices (plain DragonHD logs a warning and ignores styles).
+
+### Fixed
+- **Azure provider produced no audio in Node.js** — `SpeechSynthesizer` was
+  constructed without an `AudioConfig`, causing the SDK to target the default
+  system speaker. In server/Node contexts this initialization fails silently, the
+  synthesis callbacks never fire, and the process exits with no audio. The
+  synthesizer is now created with `null` as the AudioConfig, routing audio into
+  the in-memory `result.audioData` buffer. This makes the Azure provider usable
+  server-side for the first time.
+
 ## [0.12.3] - 2026-05-01
 
 ### Fixed

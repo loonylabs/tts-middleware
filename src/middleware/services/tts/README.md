@@ -10,10 +10,13 @@ Provider-agnostic Text-to-Speech synthesis service.
 tts/
 ├── providers/              # Provider implementations
 │   ├── base-tts-provider.ts       # Abstract base class
-│   ├── azure-provider.ts          # Azure Speech Services (MVP)
+│   ├── azure-provider.ts          # Azure Speech Services + Dragon HD (MVP)
+│   ├── cartesia-provider.ts       # Cartesia Sonic (EU-resident)
 │   ├── edenai-provider.ts         # EdenAI multi-provider aggregator
 │   ├── google-cloud-tts-provider.ts # Google Cloud TTS (EU-compliant)
 │   ├── fish-audio-provider.ts     # Fish Audio S1 (test/admin only)
+│   ├── inworld-provider.ts        # Inworld AI (test/admin only)
+│   ├── vertex-ai-tts-provider.ts  # Vertex AI / Gemini TTS (test/admin only)
 │   └── index.ts
 ├── types/                  # TypeScript interfaces & types
 │   ├── common.types.ts            # Universal types

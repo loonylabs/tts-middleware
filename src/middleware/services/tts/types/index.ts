@@ -37,6 +37,7 @@ export type {
   FishAudioProviderOptions,
   InworldProviderOptions,
   VertexAITTSProviderOptions,
+  CartesiaProviderOptions,
   DialogSpeaker,
   DialogTurn,
   DialogSegment,
@@ -55,6 +56,7 @@ export {
   isFishAudioOptions,
   isInworldOptions,
   isVertexAITTSOptions,
+  isCartesiaOptions,
 } from './provider-options.types';
 
 /**

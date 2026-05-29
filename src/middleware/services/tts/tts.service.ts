@@ -11,6 +11,7 @@ import type { TTSSynthesizeRequest, TTSResponse } from './types';
 import { TTSProvider } from './types';
 import type { BaseTTSProvider } from './providers/base-tts-provider';
 import { AzureProvider } from './providers/azure-provider';
+import { CartesiaProvider } from './providers/cartesia-provider';
 import { EdenAIProvider } from './providers/edenai-provider';
 import { GoogleCloudTTSProvider } from './providers/google-cloud-tts-provider';
 import { FishAudioProvider } from './providers/fish-audio-provider';
@@ -157,6 +158,18 @@ export class TTSService {
       });
     }
 
+    try {
+      // Initialize Cartesia provider (EU-resident, high quality)
+      const cartesiaProvider = new CartesiaProvider();
+      this.providers.set(TTSProvider.CARTESIA, cartesiaProvider);
+
+      this.log('debug', 'Cartesia provider initialized');
+    } catch (error) {
+      this.log('warn', 'Failed to initialize Cartesia provider', {
+        error: (error as Error).message,
+      });
+    }
+
     // Future providers will be initialized here:
     // try {
     //   const openaiProvider = new OpenAIProvider();
@@ -189,6 +202,7 @@ export class TTSService {
       fish_audio: TTSProvider.FISH_AUDIO,
       inworld: TTSProvider.INWORLD,
       vertex_ai: TTSProvider.VERTEX_AI,
+      cartesia: TTSProvider.CARTESIA,
     };
 
     return providerMap[normalized];
