@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-05-30
+
+### Added
+- **ElevenLabs provider** (`TTSProvider.ELEVENLABS`) — native integration of the
+  ElevenLabs text-to-speech API, including the newest **Eleven v3** model plus
+  multilingual v2 / flash. Synthesizes via `POST /v1/text-to-speech/{voice_id}`,
+  voices referenced by voice ID.
+  - `AzureProviderOptions`-style typed options: `model_id`, `language_code`,
+    `stability`, `similarity_boost`, `style`, `speaker_boost`, `outputFormat`.
+  - Output-format auto-mapping (`mp3_44100_128` default) with override.
+  - New exports: `ElevenLabsProvider` (the `ElevenLabsProviderOptions` /
+    `isElevenLabsOptions` types were already public).
+  - Helper scripts: `scripts/list-elevenlabs-voices.ts`,
+    `scripts/manual-test-elevenlabs.ts`.
+  - **Benchmark/test-only** — no EU data residency below Enterprise; training is
+    opt-out (default-on) below Enterprise. Note: free API plans cannot use
+    library/premade voices (HTTP 402) — a paid plan is required to synthesize.
+
 ## [0.13.0] - 2026-05-30
 
 ### Added

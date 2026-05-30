@@ -123,22 +123,25 @@ providerOptions: {
 
 ---
 
-### ElevenLabs (🔮 Future)
+### ElevenLabs (✅ Implemented – Test/Admin Only)
 
 | Parameter | Status | Type | Range/Options | Description |
 |-----------|--------|------|---------------|-------------|
-| **model_id** | 🔮 Future | string | 'eleven_monolingual_v1', 'eleven_multilingual_v2', etc. | Voice model |
-| **stability** | 🔮 Future | number | 0.0 - 1.0 | Voice stability vs. expressiveness |
-| **similarity_boost** | 🔮 Future | number | 0.0 - 1.0 | Similarity to original voice |
-| **speaker_boost** | 🔮 Future | boolean | true/false | Enhanced clarity |
-| **style** | 🔮 Future | number | 0.0 - 1.0 | Style exaggeration (different from Azure!) |
+| **model_id** | ✅ | string | 'eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5' | Voice model (default `eleven_multilingual_v2`) |
+| **language_code** | ✅ | string | ISO 639-1, e.g. 'de' | Enforce language; omit to auto-detect |
+| **stability** | ✅ | number | 0.0 - 1.0 | Voice stability vs. expressiveness |
+| **similarity_boost** | ✅ | number | 0.0 - 1.0 | Similarity to original voice |
+| **style** | ✅ | number | 0.0 - 1.0 | Style exaggeration (different from Azure!) |
+| **speaker_boost** | ✅ | boolean | true/false | Enhanced clarity (alias: `use_speaker_boost`) |
+| **outputFormat** | ✅ | string | 'mp3_44100_128', 'mp3_22050_32', 'opus_48000_128', … | Override the auto-mapped `output_format` (tier-gated combos) |
 
-**Implementation Status**: Not implemented (types ready)
-**Billing Model**: Character-based (~$150-200 per 1M characters depending on plan)
-**Free Tier**: 10,000 characters/month
-**EU Compliance**: ⚠️ (available on request)
+**Implementation Status**: Implemented (native API, voice referenced by voice ID)
+**Billing Model**: Character/credit-based (~$150-200 per 1M characters depending on plan)
+**Free Tier**: ⚠️ Free API users **cannot use library/premade voices** (HTTP 402) — a paid plan (Starter+) is required to synthesize via the API
+**EU Compliance**: ❌ No EU data residency below Enterprise; training opt-out (default-on) below Enterprise. **Benchmark/test-only.**
 
-**Voices**: 500+ voices, voice cloning available
+**Models**: Eleven v3 (most expressive), multilingual v2 (stable), flash v2.5 (fastest)
+**Voices**: 500+ voices, voice cloning available; list via `scripts/list-elevenlabs-voices.ts`
 
 ---
 

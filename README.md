@@ -2,7 +2,7 @@
 
 # TTS Middleware
 
-*Provider-agnostic Text-to-Speech middleware with **GDPR compliance** support. Currently supports Azure Speech Services (incl. Dragon HD), Cartesia Sonic, EdenAI, Google Cloud TTS, Fish Audio, Inworld AI, and Vertex AI TTS. Features EU data residency via Azure, Cartesia, and Google Cloud, pluggable logging, character-based billing, and comprehensive error handling.*
+*Provider-agnostic Text-to-Speech middleware with **GDPR compliance** support. Currently supports Azure Speech Services (incl. Dragon HD), Cartesia Sonic, EdenAI, Google Cloud TTS, ElevenLabs, Fish Audio, Inworld AI, and Vertex AI TTS. Features EU data residency via Azure, Cartesia, and Google Cloud, pluggable logging, character-based billing, and comprehensive error handling.*
 
 <!-- Horizontal Badge Navigation Bar -->
 [![npm version](https://img.shields.io/npm/v/@loonylabs/tts-middleware.svg?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@loonylabs/tts-middleware)
@@ -42,10 +42,11 @@
   - **Cartesia Sonic**: Sonic 3/3.5 high-quality low-latency voices, **EU data residency by default**, sentence/paragraph pause control
   - **EdenAI**: Aggregator with access to Google, OpenAI, Amazon, IBM, ElevenLabs
   - **Google Cloud TTS**: Neural2, WaveNet, Studio voices with EU data residency
+  - **ElevenLabs**: Eleven v3 / multilingual v2, native API (test/admin only — benchmark)
   - **Fish Audio**: S1 model with 13 languages & 64+ emotions (test/admin only)
   - **Inworld AI**: TTS 1.5 Max/Mini with 15 languages & voice cloning (test/admin only)
   - **Vertex AI TTS**: Gemini Flash/Pro models with 30 voices, 90+ languages & style prompts (test/admin only)
-  - **Ready for:** OpenAI, ElevenLabs, Deepgram (interfaces prepared)
+  - **Ready for:** OpenAI, Deepgram (interfaces prepared)
 - **GDPR/DSGVO Compliance**: Built-in EU region support for Azure, Cartesia, and Google Cloud
 - **SSML Abstraction**: Auto-generates provider-specific SSML from simple JSON options
 - **Character Billing**: Accurate character counting for cost calculation
@@ -288,6 +289,9 @@ CARTESIA_API_KEY=sk_car_your-key
 # EdenAI (multi-provider aggregator)
 EDENAI_API_KEY=your-edenai-api-key
 
+# ElevenLabs (benchmark/test-only – no EU data residency below Enterprise)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+
 # Google Cloud TTS (EU-compliant)
 GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
 GOOGLE_CLOUD_PROJECT=your-project-id
@@ -356,6 +360,18 @@ LOG_LEVEL=info
 | **Voices** | Depends on underlying provider |
 | **OpenAI Voices** | alloy, echo, fable, onyx, nova, shimmer (57 languages) |
 | **ElevenLabs Voices** | Aria, Roger, Sarah, Laura, Charlie, George (via `voice_id`) |
+
+### ElevenLabs (Test/Admin Only)
+
+| Feature | Details |
+|---------|---------|
+| **Models** | eleven_v3 (most expressive), eleven_multilingual_v2, eleven_flash_v2_5 |
+| **Voices** | 500+ voices (by voice ID); cloning available; list via `scripts/list-elevenlabs-voices.ts` |
+| **Control** | `model_id`, `language_code`, `stability`, `similarity_boost`, `style`, `speaker_boost` |
+| **Audio** | MP3 (up to 44.1 kHz), Opus, PCM/WAV via `outputFormat` |
+| **Pricing** | ~$150–200/1M characters (plan-dependent) |
+| **Plan note** | Free API users **cannot** use library/premade voices (HTTP 402) — requires a paid plan |
+| **EU Compliance** | ❌ No EU data residency below Enterprise — benchmark/test-only |
 
 ### Fish Audio (Test/Admin Only)
 
@@ -487,6 +503,7 @@ timing. See [Request Debug Logging](#advanced-features) below.
 | **Cartesia** | Yes | Yes | Yes (EU by default) | High quality, low latency |
 | **Google Cloud** | Yes | Yes | Yes (EU multi-region) | Full EU endpoint support |
 | **EdenAI** | Yes | Depends* | Depends* | Depends on underlying provider |
+| **ElevenLabs** | Enterprise only | Enterprise only | Enterprise only | Benchmark/test-only |
 | **Fish Audio** | No | No | No | Test/admin only |
 | **Inworld AI** | No | No | No | Test/admin only |
 | **Vertex AI TTS** | Yes (Vertex DPA) | Partial | No* | Test/admin only |
@@ -720,6 +737,7 @@ graph TD
     Registry -->|Select| Cartesia[CartesiaProvider]
     Registry -->|Select| GCloud[GoogleCloudTTSProvider]
     Registry -->|Select| Eden[EdenAIProvider]
+    Registry -->|Select| Eleven[ElevenLabsProvider]
     Registry -->|Select| Fish[FishAudioProvider]
     Registry -->|Select| Inworld[InworldProvider]
     Registry -->|Select| VertexAI[VertexAITTSProvider]
@@ -728,6 +746,7 @@ graph TD
     Cartesia -->|REST| CartesiaAPI[Cartesia Sonic API]
     GCloud -->|gRPC/SDK| GoogleAPI[Google Cloud TTS API]
     Eden -->|REST| EdenAPI[EdenAI API]
+    Eleven -->|REST| ElevenAPI[ElevenLabs API]
     Fish -->|REST| FishAPI[Fish Audio API]
     Inworld -->|REST| InworldAPI[Inworld AI API]
     VertexAI -->|REST/OAuth2| VertexAPI[Vertex AI API]

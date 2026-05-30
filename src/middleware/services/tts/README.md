@@ -12,6 +12,7 @@ tts/
 │   ├── base-tts-provider.ts       # Abstract base class
 │   ├── azure-provider.ts          # Azure Speech Services + Dragon HD (MVP)
 │   ├── cartesia-provider.ts       # Cartesia Sonic (EU-resident)
+│   ├── elevenlabs-provider.ts     # ElevenLabs Eleven v3 (test/admin only)
 │   ├── edenai-provider.ts         # EdenAI multi-provider aggregator
 │   ├── google-cloud-tts-provider.ts # Google Cloud TTS (EU-compliant)
 │   ├── fish-audio-provider.ts     # Fish Audio S1 (test/admin only)
