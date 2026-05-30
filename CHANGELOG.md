@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-05-30
+
+### Added
+- **Dialog synthesis as a first-class provider capability.**
+  - New `SupportsDialog` interface + `DialogCapabilities` descriptor +
+    `supportsDialog()` type guard (exported from the package). Dialog-capable
+    providers now declare their limits (`maxSpeakers`, `maxCharsPerRequest`,
+    `supportsStylePrompt`, `supportsAudioTags`) so consumers can check before
+    building a request.
+  - New unified entry point **`ttsService.synthesizeDialog(request)`** — routes
+    by `request.provider` (falling back to the default provider) and throws a
+    clear, provider-named error if the resolved provider is not dialog-capable.
+  - `SynthesizeDialogRequest` gained an optional `provider` field; its
+    `providerOptions` now accepts `ElevenLabsProviderOptions` in addition to
+    `VertexAITTSProviderOptions`.
+- **ElevenLabs Text to Dialogue** (`ElevenLabsProvider.synthesizeDialog()`) —
+  multi-speaker dialog via the `eleven_v3` Text to Dialogue endpoint:
+  - **Up to 10 distinct speakers** in a single call (vs. Vertex's 2 per segment),
+    with the model managing speaker transitions for better cross-speaker
+    coherence.
+  - Turns are flattened across segments and packed into ≤2000-character chunks
+    (ElevenLabs hard limit); chunk MP3s are concatenated. Short dialogs are a
+    single call. Billing aggregates all turn characters.
+  - Inline audio tags (`[whispers]`, `[laughs]`, …) pass through in turn text.
+    `stylePrompt` has no ElevenLabs equivalent and is ignored.
+  - `dialogCapabilities`: `{ maxSpeakers: 10, maxCharsPerRequest: 2000,
+    supportsStylePrompt: false, supportsAudioTags: true }`.
+  - Helper script: `scripts/manual-test-elevenlabs-dialog.ts`.
+- **VertexAITTSProvider** now formally implements `SupportsDialog` with
+  `dialogCapabilities` `{ maxSpeakers: 2, supportsStylePrompt: true,
+  supportsAudioTags: true }` (behavior unchanged).
+
 ## [0.14.0] - 2026-05-30
 
 ### Added

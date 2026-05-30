@@ -24,6 +24,8 @@ import {
   BaseTTSProvider,
   InvalidConfigError,
   PayloadTooLargeError,
+  type SupportsDialog,
+  type DialogCapabilities,
 } from './base-tts-provider';
 import type {
   VertexAITTSProviderOptions,
@@ -160,7 +162,21 @@ const GEMINI_TTS_MAX_COMBINED_BYTES = 8000;
  * );
  * ```
  */
-export class VertexAITTSProvider extends BaseTTSProvider {
+export class VertexAITTSProvider
+  extends BaseTTSProvider
+  implements SupportsDialog
+{
+  /**
+   * Dialog capabilities: Vertex AI multi-speaker TTS supports at most 2 distinct
+   * speakers per request, honors per-segment style prompts, and accepts Gemini
+   * inline audio tags.
+   */
+  readonly dialogCapabilities: DialogCapabilities = {
+    maxSpeakers: 2,
+    supportsStylePrompt: true,
+    supportsAudioTags: true,
+  };
+
   private config: VertexAITTSConfig;
   private authClient: { getAccessToken: () => Promise<{ token?: string | null }> } | null = null;
   private readonly ffmpegPath: string;

@@ -12,6 +12,7 @@ import type {
   TTSSynthesizeRequest,
   TTSResponse,
   TTSErrorCode,
+  SynthesizeDialogRequest,
 } from '../types';
 import { log as logUtil } from '../utils/logger.utils';
 import {
@@ -441,4 +442,60 @@ export abstract class BaseTTSProvider {
       provider: entry.provider ?? this.providerName,
     });
   }
+}
+
+/**
+ * Declares what a dialog-capable provider supports.
+ *
+ * @description Consumers can read these before building a request (e.g. to
+ * check whether a 3-speaker scene fits, or whether per-segment style prompts
+ * are honored) instead of discovering limits via runtime errors.
+ */
+export interface DialogCapabilities {
+  /** Maximum number of distinct speakers the provider supports per dialog. */
+  maxSpeakers: number;
+  /**
+   * Maximum characters accepted per upstream request. The provider chunks
+   * larger dialogs internally. Undefined = no fixed documented cap.
+   */
+  maxCharsPerRequest?: number;
+  /** Whether `DialogSegment.stylePrompt` influences delivery (Gemini) or is ignored (ElevenLabs). */
+  supportsStylePrompt: boolean;
+  /** Whether inline audio tags (e.g. `[whispers]`) in turn text affect delivery. */
+  supportsAudioTags: boolean;
+}
+
+/**
+ * Capability interface for providers that support multi-speaker dialog
+ * synthesis via {@link BaseTTSProvider}.
+ *
+ * @description Implemented by providers with a native dialog/multi-speaker
+ * endpoint (e.g. Vertex AI / Gemini, ElevenLabs Text to Dialogue). Use
+ * {@link supportsDialog} to narrow a provider instance to this interface.
+ */
+export interface SupportsDialog {
+  /** Static description of the provider's dialog limits and features. */
+  readonly dialogCapabilities: DialogCapabilities;
+  /**
+   * Synthesize a multi-segment, multi-speaker dialog into a single audio file.
+   *
+   * @param request - Dialog request with speakers and ordered segments
+   * @returns Single audio response with aggregated billing
+   */
+  synthesizeDialog(request: SynthesizeDialogRequest): Promise<TTSResponse>;
+}
+
+/**
+ * Type guard: narrows a provider to {@link SupportsDialog} when it implements
+ * the dialog capability.
+ */
+export function supportsDialog(
+  provider: BaseTTSProvider
+): provider is BaseTTSProvider & SupportsDialog {
+  const candidate = provider as Partial<SupportsDialog>;
+  return (
+    typeof candidate.synthesizeDialog === 'function' &&
+    typeof candidate.dialogCapabilities === 'object' &&
+    candidate.dialogCapabilities !== null
+  );
 }

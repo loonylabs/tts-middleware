@@ -7,9 +7,15 @@
  * Analogous to LLMService in the LLM middleware.
  */
 
-import type { TTSSynthesizeRequest, TTSResponse } from './types';
+import type {
+  TTSSynthesizeRequest,
+  TTSResponse,
+  SynthesizeDialogRequest,
+} from './types';
 import { TTSProvider } from './types';
 import type { BaseTTSProvider } from './providers/base-tts-provider';
+import { supportsDialog } from './providers/base-tts-provider';
+import { InvalidConfigError } from './providers/base-tts-provider';
 import { AzureProvider } from './providers/azure-provider';
 import { CartesiaProvider } from './providers/cartesia-provider';
 import { ElevenLabsProvider } from './providers/elevenlabs-provider';
@@ -289,6 +295,74 @@ export class TTSService {
         error: (error as Error).message,
       });
 
+      throw error;
+    }
+  }
+
+  /**
+   * Synthesize a multi-speaker dialog.
+   *
+   * @description Routes to a dialog-capable provider's `synthesizeDialog()`.
+   * The provider is taken from `request.provider` (falling back to the default
+   * provider). Throws a clear error if the resolved provider does not support
+   * dialog synthesis — inspect `provider.dialogCapabilities` (via
+   * {@link getProvider}) to discover limits such as max speakers beforehand.
+   *
+   * @param request - Dialog request with speakers and ordered segments
+   * @returns Single concatenated audio response with aggregated billing
+   * @throws {InvalidConfigError} If the provider is not registered or does not
+   *   support dialog synthesis
+   *
+   * @example
+   * ```typescript
+   * const audio = await ttsService.synthesizeDialog({
+   *   provider: TTSProvider.ELEVENLABS,
+   *   speakers: [
+   *     { speaker: 'Narrator', voice: 'JBFqnCBsd6RMkjVDRZzb' },
+   *     { speaker: 'Leah', voice: 'EXAVITQu4vr4xnSDxMaL' },
+   *   ],
+   *   segments: [{ turns: [{ speaker: 'Narrator', text: 'Es war einmal…' }] }],
+   *   providerOptions: { model_id: 'eleven_v3', language_code: 'de' },
+   * });
+   * ```
+   */
+  async synthesizeDialog(
+    request: SynthesizeDialogRequest
+  ): Promise<TTSResponse> {
+    const providerEnum = request.provider || this.defaultProvider;
+    const provider = this.getProvider(providerEnum);
+
+    if (!supportsDialog(provider)) {
+      const capable = this.getAvailableProviders().filter((p) => {
+        const inst = this.providers.get(p);
+        return inst && supportsDialog(inst);
+      });
+      throw new InvalidConfigError(
+        providerEnum,
+        `Provider '${providerEnum}' does not support dialog synthesis. ` +
+          `Dialog-capable providers: ${capable.length ? capable.join(', ') : 'none registered'}.`
+      );
+    }
+
+    this.log('info', 'Synthesizing dialog', {
+      provider: providerEnum,
+      speakerCount: request.speakers?.length,
+      segmentCount: request.segments?.length,
+    });
+
+    try {
+      const response = await provider.synthesizeDialog(request);
+      this.log('info', 'Dialog synthesis completed', {
+        provider: providerEnum,
+        characters: response.billing.characters,
+        audioSize: response.audio.length,
+      });
+      return response;
+    } catch (error) {
+      this.log('error', 'Dialog synthesis failed', {
+        provider: providerEnum,
+        error: (error as Error).message,
+      });
       throw error;
     }
   }
