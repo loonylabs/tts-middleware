@@ -12,6 +12,7 @@ import { TTSProvider } from './types';
 import type { BaseTTSProvider } from './providers/base-tts-provider';
 import { AzureProvider } from './providers/azure-provider';
 import { CartesiaProvider } from './providers/cartesia-provider';
+import { ElevenLabsProvider } from './providers/elevenlabs-provider';
 import { EdenAIProvider } from './providers/edenai-provider';
 import { GoogleCloudTTSProvider } from './providers/google-cloud-tts-provider';
 import { FishAudioProvider } from './providers/fish-audio-provider';
@@ -166,6 +167,18 @@ export class TTSService {
       this.log('debug', 'Cartesia provider initialized');
     } catch (error) {
       this.log('warn', 'Failed to initialize Cartesia provider', {
+        error: (error as Error).message,
+      });
+    }
+
+    try {
+      // Initialize ElevenLabs provider (benchmark/test-only — no EU residency)
+      const elevenLabsProvider = new ElevenLabsProvider();
+      this.providers.set(TTSProvider.ELEVENLABS, elevenLabsProvider);
+
+      this.log('debug', 'ElevenLabs provider initialized');
+    } catch (error) {
+      this.log('warn', 'Failed to initialize ElevenLabs provider', {
         error: (error as Error).message,
       });
     }

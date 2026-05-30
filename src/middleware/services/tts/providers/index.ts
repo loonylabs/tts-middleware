@@ -27,8 +27,8 @@ export { InworldProvider } from './inworld-provider';
 export { VertexAITTSProvider } from './vertex-ai-tts-provider';
 export type { VertexAITTSConfig } from './vertex-ai-tts-provider';
 export { CartesiaProvider } from './cartesia-provider';
+export { ElevenLabsProvider } from './elevenlabs-provider';
 
 // Future provider implementations will be exported here:
 // export { OpenAIProvider } from './openai-provider';
-// export { ElevenLabsProvider } from './elevenlabs-provider';
 // export { DeepgramProvider } from './deepgram-provider';

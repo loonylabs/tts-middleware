@@ -182,25 +182,50 @@ export interface OpenAIProviderOptions {
 /**
  * ElevenLabs TTS provider options
  *
- * @Future 🔮 Not implemented in MVP
  * @provider ElevenLabs TTS API
+ * @description Implemented as a **benchmark/test-only** provider — no EU data
+ * residency below Enterprise tier. Use for quality comparisons, not EU-compliant
+ * production.
  *
- * @see https://elevenlabs.io/docs/api-reference/text-to-speech
+ * @see https://elevenlabs.io/docs/api-reference/text-to-speech/convert
  */
 export interface ElevenLabsProviderOptions {
   /**
    * Voice model ID
-   * @Future 🔮 Not implemented in MVP
+   * @MVP ✅ Implemented
    *
    * @options
-   * - 'eleven_monolingual_v1': English only, lower latency
-   * - 'eleven_multilingual_v1': Multiple languages
-   * - 'eleven_multilingual_v2': Latest multilingual model
-   * - 'eleven_turbo_v2': Fastest, lower quality
+   * - 'eleven_v3': Newest, most expressive model (highest quality)
+   * - 'eleven_multilingual_v2': Stable multilingual model
+   * - 'eleven_flash_v2_5': Fastest, lower latency
+   * - 'eleven_turbo_v2': Fast, lower quality
    *
    * @default 'eleven_multilingual_v2'
    */
   model_id?: string;
+
+  /**
+   * Synthesis language (ISO 639-1)
+   * @MVP ✅ Implemented
+   *
+   * @description Enforces a language; omit to let the model auto-detect.
+   *
+   * @example 'de'
+   */
+  language_code?: string;
+
+  /**
+   * ElevenLabs `output_format` override (query parameter)
+   * @MVP ✅ Implemented
+   *
+   * @description Overrides the auto-mapped output format. Bitrate/sample-rate
+   * combinations are tier-gated by ElevenLabs.
+   *
+   * @options 'mp3_44100_128', 'mp3_44100_192', 'mp3_22050_32',
+   *          'opus_48000_128', 'pcm_44100', 'wav_48000'
+   * @default 'mp3_44100_128'
+   */
+  outputFormat?: string;
 
   /**
    * Voice stability (0.0 - 1.0)
