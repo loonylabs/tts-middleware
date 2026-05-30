@@ -2,11 +2,19 @@
  * Cartesia TTS Provider
  *
  * @description Provider for Cartesia's Sonic text-to-speech API.
- * EU-compliant: by default all voice data is processed within EU-resident
- * infrastructure, with a GDPR-aligned DPA. High-quality, low-latency,
- * expressive voices (Sonic 3 / 3.5) suited for narration and dialog.
+ * High-quality, low-latency, expressive voices (Sonic 3 / 3.5) suited for
+ * narration and dialog.
+ *
+ * Data protection — Test/Admin only. Cartesia exposes a SINGLE global endpoint
+ * (api.cartesia.ai) with NO self-serve EU data residency: its privacy policy
+ * targets US users and transfers rely on SCCs / the EU-US Data Privacy
+ * Framework (DPF certification unconfirmed). Treat as a US processor — NOT
+ * EU-resident. A GDPR-aligned DPA with optional zero-data-retention exists, but
+ * use as a quality benchmark, not for EU-compliant production. (Corrected
+ * 2026-05-31: the prior "EU-resident by default" note was unsubstantiated.)
  *
  * @see https://docs.cartesia.ai/api-reference/tts/bytes
+ * @see https://cartesia.ai/legal/dpa.html
  */
 
 import type { TTSSynthesizeRequest, TTSResponse } from '../types';
