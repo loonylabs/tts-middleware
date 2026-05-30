@@ -93,109 +93,30 @@ export class TTSService {
    * @private
    */
   private initializeProviders(): void {
-    try {
-      // Initialize Azure provider (MVP)
-      const azureProvider = new AzureProvider();
-      this.providers.set(TTSProvider.AZURE, azureProvider);
+    // Data-driven registry: each provider is constructed independently and a
+    // failure (e.g. missing credentials) only skips that provider. Adding a new
+    // provider is a single entry here.
+    const factories: ReadonlyArray<readonly [TTSProvider, () => BaseTTSProvider]> = [
+      [TTSProvider.AZURE, () => new AzureProvider()],
+      [TTSProvider.CARTESIA, () => new CartesiaProvider()],
+      [TTSProvider.ELEVENLABS, () => new ElevenLabsProvider()],
+      [TTSProvider.EDENAI, () => new EdenAIProvider()],
+      [TTSProvider.GOOGLE, () => new GoogleCloudTTSProvider()],
+      [TTSProvider.FISH_AUDIO, () => new FishAudioProvider()],
+      [TTSProvider.INWORLD, () => new InworldProvider()],
+      [TTSProvider.VERTEX_AI, () => new VertexAITTSProvider()],
+    ];
 
-      this.log('debug', 'Azure provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Azure provider', {
-        error: (error as Error).message,
-      });
+    for (const [name, factory] of factories) {
+      try {
+        this.providers.set(name, factory());
+        this.log('debug', `${name} provider initialized`);
+      } catch (error) {
+        this.log('warn', `Failed to initialize ${name} provider`, {
+          error: (error as Error).message,
+        });
+      }
     }
-
-    try {
-      // Initialize EdenAI provider
-      const edenaiProvider = new EdenAIProvider();
-      this.providers.set(TTSProvider.EDENAI, edenaiProvider);
-
-      this.log('debug', 'EdenAI provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize EdenAI provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize Google Cloud TTS provider
-      const googleProvider = new GoogleCloudTTSProvider();
-      this.providers.set(TTSProvider.GOOGLE, googleProvider);
-
-      this.log('debug', 'Google Cloud TTS provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Google Cloud TTS provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize Fish Audio provider (test/admin only)
-      const fishAudioProvider = new FishAudioProvider();
-      this.providers.set(TTSProvider.FISH_AUDIO, fishAudioProvider);
-
-      this.log('debug', 'Fish Audio provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Fish Audio provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize Inworld AI provider (test/admin only)
-      const inworldProvider = new InworldProvider();
-      this.providers.set(TTSProvider.INWORLD, inworldProvider);
-
-      this.log('debug', 'Inworld AI provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Inworld AI provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize Vertex AI TTS provider (test/admin only)
-      const vertexAIProvider = new VertexAITTSProvider();
-      this.providers.set(TTSProvider.VERTEX_AI, vertexAIProvider);
-
-      this.log('debug', 'Vertex AI TTS provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Vertex AI TTS provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize Cartesia provider (EU-resident, high quality)
-      const cartesiaProvider = new CartesiaProvider();
-      this.providers.set(TTSProvider.CARTESIA, cartesiaProvider);
-
-      this.log('debug', 'Cartesia provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize Cartesia provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    try {
-      // Initialize ElevenLabs provider (benchmark/test-only — no EU residency)
-      const elevenLabsProvider = new ElevenLabsProvider();
-      this.providers.set(TTSProvider.ELEVENLABS, elevenLabsProvider);
-
-      this.log('debug', 'ElevenLabs provider initialized');
-    } catch (error) {
-      this.log('warn', 'Failed to initialize ElevenLabs provider', {
-        error: (error as Error).message,
-      });
-    }
-
-    // Future providers will be initialized here:
-    // try {
-    //   const openaiProvider = new OpenAIProvider();
-    //   this.providers.set(TTSProvider.OPENAI, openaiProvider);
-    // } catch (error) {
-    //   this.log('warn', 'Failed to initialize OpenAI provider', { error });
-    // }
   }
 
   /**

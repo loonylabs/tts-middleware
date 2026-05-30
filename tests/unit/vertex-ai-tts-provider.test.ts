@@ -14,6 +14,7 @@ import {
   QuotaExceededError,
   SynthesisFailedError,
   PayloadTooLargeError,
+  supportsDialog,
 } from '../../src/middleware/services/tts/providers/base-tts-provider';
 import type { SynthesizeDialogRequest } from '../../src/middleware/services/tts/types';
 
@@ -1420,6 +1421,16 @@ describe('VertexAITTSProvider', () => {
       expect(md).toContain('ECONNREFUSED');
       expect(md).toContain('- **Name**: FetchError');
       expect(md).not.toContain('- **HTTP Status**:');
+    });
+  });
+
+  describe('Dialog capability', () => {
+    test('implements SupportsDialog with 2-speaker capabilities', () => {
+      const provider = new VertexAITTSProvider();
+      expect(supportsDialog(provider)).toBe(true);
+      expect(provider.dialogCapabilities.maxSpeakers).toBe(2);
+      expect(provider.dialogCapabilities.supportsStylePrompt).toBe(true);
+      expect(provider.dialogCapabilities.supportsAudioTags).toBe(true);
     });
   });
 });

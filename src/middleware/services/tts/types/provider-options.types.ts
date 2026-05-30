@@ -789,7 +789,13 @@ export interface VertexAITTSProviderOptions {
 export interface DialogSpeaker {
   /** Alphanumeric alias referenced in DialogTurn.speaker */
   speaker: string;
-  /** Prebuilt voice name (e.g. 'Kore', 'Puck', 'Charon', 'Aoede') */
+  /**
+   * The provider's voice identifier for this speaker. Semantics are
+   * provider-specific:
+   * - **Vertex AI / Gemini**: a prebuilt voice *name* (e.g. 'Kore', 'Puck',
+   *   'Charon', 'Aoede').
+   * - **ElevenLabs**: a voice *ID* (e.g. 'EXAVITQu4vr4xnSDxMaL').
+   */
   voice: string;
 }
 
@@ -859,7 +865,9 @@ export interface DialogSegment {
  * });
  * ```
  */
-export interface SynthesizeDialogRequest {
+export interface SynthesizeDialogRequest<
+  TProviderOptions = VertexAITTSProviderOptions | ElevenLabsProviderOptions
+> {
   /**
    * Provider to synthesize with. Optional — `ttsService.synthesizeDialog()`
    * falls back to the default provider. Must resolve to a dialog-capable
@@ -872,14 +880,16 @@ export interface SynthesizeDialogRequest {
   segments: DialogSegment[];
   /** Language code and other voice-level config (voice.id is ignored in dialog mode) */
   voice?: { languageCode?: string; id?: string };
-  /** Audio output options (format, etc.) */
-  audio?: { format?: 'mp3' | 'wav' | string };
+  /** Audio output options (format, sample rate, etc.) */
+  audio?: { format?: 'mp3' | 'wav' | string; sampleRate?: number };
   /**
    * Provider-specific options. The concrete shape depends on which provider
-   * synthesizes the dialog (Vertex AI / Gemini uses `VertexAITTSProviderOptions`,
-   * ElevenLabs uses `ElevenLabsProviderOptions`).
+   * synthesizes the dialog. The default type covers the two built-in dialog
+   * providers (Vertex AI / Gemini → `VertexAITTSProviderOptions`, ElevenLabs →
+   * `ElevenLabsProviderOptions`). New dialog providers parameterize the generic
+   * (`SynthesizeDialogRequest<MyOptions>`) instead of widening the shared union.
    */
-  providerOptions?: VertexAITTSProviderOptions | ElevenLabsProviderOptions;
+  providerOptions?: TProviderOptions;
   /** Retry config for transient errors, as in TTSSynthesizeRequest */
   retry?: boolean | RetryConfig;
 }
