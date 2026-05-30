@@ -9,6 +9,7 @@
  */
 
 import type { RetryConfig } from '../utils/retry.utils';
+import type { TTSProvider } from './common.types';
 
 /**
  * Azure Speech Services provider options
@@ -859,6 +860,12 @@ export interface DialogSegment {
  * ```
  */
 export interface SynthesizeDialogRequest {
+  /**
+   * Provider to synthesize with. Optional — `ttsService.synthesizeDialog()`
+   * falls back to the default provider. Must resolve to a dialog-capable
+   * provider (see {@link SupportsDialog}).
+   */
+  provider?: TTSProvider;
   /** Speaker-to-voice mapping, referenced by DialogTurn.speaker */
   speakers: DialogSpeaker[];
   /** One or more dialog segments, synthesized in order */
@@ -867,8 +874,12 @@ export interface SynthesizeDialogRequest {
   voice?: { languageCode?: string; id?: string };
   /** Audio output options (format, etc.) */
   audio?: { format?: 'mp3' | 'wav' | string };
-  /** Provider-specific options (model, region, temperature) */
-  providerOptions?: VertexAITTSProviderOptions;
+  /**
+   * Provider-specific options. The concrete shape depends on which provider
+   * synthesizes the dialog (Vertex AI / Gemini uses `VertexAITTSProviderOptions`,
+   * ElevenLabs uses `ElevenLabsProviderOptions`).
+   */
+  providerOptions?: VertexAITTSProviderOptions | ElevenLabsProviderOptions;
   /** Retry config for transient errors, as in TTSSynthesizeRequest */
   retry?: boolean | RetryConfig;
 }

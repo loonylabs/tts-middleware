@@ -541,4 +541,33 @@ describe('TTSService', () => {
       expect(provider.synthesize).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('Dialog', () => {
+    let service: TTSService;
+
+    beforeEach(() => {
+      service = new TTSService();
+    });
+
+    test('throws when the resolved provider does not support dialog', async () => {
+      // Only the (mocked) Azure provider is registered here, and it is not
+      // dialog-capable, so the default-provider dialog call must be rejected.
+      await expect(
+        service.synthesizeDialog({
+          speakers: [{ speaker: 'A', voice: 'v1' }],
+          segments: [{ turns: [{ speaker: 'A', text: 'Hi.' }] }],
+        })
+      ).rejects.toThrow(InvalidConfigError);
+    });
+
+    test('error message names the unsupported provider', async () => {
+      await expect(
+        service.synthesizeDialog({
+          provider: TTSProvider.AZURE,
+          speakers: [{ speaker: 'A', voice: 'v1' }],
+          segments: [{ turns: [{ speaker: 'A', text: 'Hi.' }] }],
+        })
+      ).rejects.toThrow(/does not support dialog/i);
+    });
+  });
 });

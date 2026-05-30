@@ -493,6 +493,54 @@ Markdown file written per segment under `logs/tts/requests/`, capturing the
 exact request body, selected shape, speaker→voice mapping, HTTP status, and
 timing. See [Request Debug Logging](#advanced-features) below.
 
+### Dialog as a provider capability
+
+Dialog synthesis is a **capability** — providers that support it implement the
+`SupportsDialog` interface and expose a `dialogCapabilities` descriptor. Use the
+unified `ttsService.synthesizeDialog()` entry point, which routes to the
+requested provider and throws a clear error if it is not dialog-capable.
+
+```typescript
+import { ttsService, TTSProvider, supportsDialog } from '@loonylabs/tts-middleware';
+
+// Inspect capabilities before building a request:
+const provider = ttsService.getProvider(TTSProvider.ELEVENLABS);
+if (supportsDialog(provider)) {
+  console.log(provider.dialogCapabilities.maxSpeakers); // 10
+}
+
+// Unified entry point (routes by request.provider, falls back to default):
+const result = await ttsService.synthesizeDialog({
+  provider: TTSProvider.ELEVENLABS,
+  speakers: [
+    { speaker: 'Narrator', voice: 'JBFqnCBsd6RMkjVDRZzb' }, // ElevenLabs voice IDs
+    { speaker: 'Leah',     voice: 'EXAVITQu4vr4xnSDxMaL' },
+    { speaker: 'Lumi',     voice: 'FGY2WhTYpPnrIDTdsKH5' },
+  ],
+  segments: [
+    { turns: [
+      { speaker: 'Narrator', text: 'Behutsam öffnete Leah das Fenster.' },
+      { speaker: 'Leah',     text: '[whispers] Lumi? Was ist passiert?' },
+      { speaker: 'Lumi',     text: '[giggles] Der Himmel wartet auf uns!' },
+    ] },
+  ],
+  audio: { format: 'mp3' },
+  providerOptions: { model_id: 'eleven_v3', language_code: 'de' },
+});
+```
+
+**Dialog capability matrix:**
+
+| Provider | Max speakers | Per-request limit | Style prompt | Audio tags | EU |
+|----------|--------------|-------------------|--------------|-----------|----|
+| **ElevenLabs** (Text to Dialogue, `eleven_v3`) | **10** | ~2000 chars (auto-chunked) | ❌ (use inline tags) | ✅ `[whispers]`, `[laughs]`, … | ❌ benchmark-only |
+| **Vertex AI / Gemini** (`gemini-3.1-flash-tts-preview`) | 2 per segment | 8 KB combined/segment | ✅ per segment | ✅ `[sigh]`, `[short pause]`, … | ❌ preview, `us-central1` |
+
+ElevenLabs flattens all turns into one Text-to-Dialogue call (best cross-speaker
+coherence) and only splits when the character budget is exceeded; Vertex runs one
+request per segment and concatenates. Both return a single audio buffer with
+billing aggregated across the whole dialog.
+
 ## GDPR / Compliance
 
 ### Provider Compliance Overview

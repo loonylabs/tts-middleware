@@ -68,6 +68,8 @@ export {
 export {
   BaseTTSProvider,
   AzureProvider,
+  CartesiaProvider,
+  ElevenLabsProvider,
   EdenAIProvider,
   FishAudioProvider,
   GoogleCloudTTSProvider,
@@ -76,6 +78,10 @@ export {
 } from './providers';
 
 export type { VertexAITTSConfig } from './providers';
+
+// ===== Dialog capability =====
+export { supportsDialog } from './providers';
+export type { SupportsDialog, DialogCapabilities } from './providers';
 
 export type {
   GoogleCloudTTSRegion,

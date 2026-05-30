@@ -15,6 +15,11 @@ export {
   SynthesisFailedError,
   NetworkError,
   PayloadTooLargeError,
+  supportsDialog,
+} from './base-tts-provider';
+export type {
+  SupportsDialog,
+  DialogCapabilities,
 } from './base-tts-provider';
 
 // Provider implementations

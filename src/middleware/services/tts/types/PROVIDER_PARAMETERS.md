@@ -142,6 +142,7 @@ providerOptions: {
 
 **Models**: Eleven v3 (most expressive), multilingual v2 (stable), flash v2.5 (fastest)
 **Voices**: 500+ voices, voice cloning available; list via `scripts/list-elevenlabs-voices.ts`
+**Dialog**: `synthesizeDialog()` via Text to Dialogue (eleven_v3) — up to **10 speakers** in one call, inline audio tags. See the dialog capability matrix in the main README.
 
 ---
 
