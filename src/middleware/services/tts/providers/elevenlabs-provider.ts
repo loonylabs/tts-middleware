@@ -52,6 +52,7 @@ function mapOutputFormat(
 ): string {
   if (format === 'mp3' && sampleRate === 22050) return 'mp3_22050_32';
   if (format === 'opus') return 'opus_48000_128';
+  if (format === 'wav') return 'wav_48000';
   // Default / mp3 — broadly available on all tiers.
   return 'mp3_44100_128';
 }
@@ -290,7 +291,9 @@ export class ElevenLabsProvider
    * - **≤2000 characters per request** — turns are packed into chunks of at most
    *   {@link DIALOGUE_CHUNK_CHAR_BUDGET} characters; each chunk is one API call,
    *   and the resulting MP3 buffers are concatenated. Short dialogs are a single
-   *   call (optimal coherence).
+   *   call (optimal coherence) — the common case. For multi-chunk dialogs the
+   *   MP3 streams are concatenated as raw buffers (no re-encode); players handle
+   *   this, but it is the reason single-call dialogs are preferred.
    *
    * Inline audio tags (`[whispers]`, `[laughs]`, …) are passed through verbatim
    * in each turn's text. `DialogSegment.stylePrompt` has no ElevenLabs
@@ -307,7 +310,20 @@ export class ElevenLabsProvider
     const language =
       options.language_code || request.voice?.languageCode || undefined;
     const format = request.audio?.format || 'mp3';
-    const outputFormat = options.outputFormat || 'mp3_44100_128';
+    const sampleRate = request.audio?.sampleRate || 44100;
+    // Derive the ElevenLabs output_format from the requested audio format so
+    // metadata.audioFormat matches the bytes actually returned.
+    const outputFormat = options.outputFormat || mapOutputFormat(format, sampleRate);
+
+    // ElevenLabs Text to Dialogue has no per-segment style prompt — surface a
+    // hint when one is supplied (e.g. a dialog migrated from Gemini) so it is
+    // not silently lost.
+    if (request.segments.some((s) => s.stylePrompt)) {
+      this.log(
+        'warn',
+        'ElevenLabs dialog ignores DialogSegment.stylePrompt — express delivery with inline audio tags instead.'
+      );
+    }
 
     // Resolve speaker alias -> voice ID, and flatten turns in segment order.
     const voiceByAlias = this.buildSpeakerMap(request);

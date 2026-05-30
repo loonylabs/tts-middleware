@@ -355,13 +355,33 @@ describe('ElevenLabsProvider', () => {
       expect(calledUrl()).toContain('output_format=mp3_22050_32');
     });
 
-    test('wav format yields undefined audioDuration', async () => {
+    test('wav format drives output_format and metadata consistently', async () => {
       const provider = new ElevenLabsProvider();
       const result = await provider.synthesizeDialog(
         dialogReq({ audio: { format: 'wav' } })
       );
+      // output_format is derived from the requested format (no mp3/wav mismatch).
+      expect(calledUrl()).toContain('output_format=wav_48000');
       expect(result.metadata.audioFormat).toBe('wav');
       expect(result.metadata.audioDuration).toBeUndefined();
+    });
+
+    test('warns and ignores stylePrompt (no Gemini equivalent)', async () => {
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const provider = new ElevenLabsProvider();
+      await provider.synthesizeDialog(
+        dialogReq({
+          segments: [
+            { stylePrompt: 'calm narration', turns: [{ speaker: 'Leah', text: 'Hi.' }] },
+          ],
+        })
+      );
+      expect(
+        warnSpy.mock.calls.some((c) =>
+          String(c[0]).includes('ignores DialogSegment.stylePrompt')
+        )
+      ).toBe(true);
+      warnSpy.mockRestore();
     });
 
     test('throws on empty speakers', async () => {

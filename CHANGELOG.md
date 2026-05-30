@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-05-30
+
+### Changed
+- **Provider registration is now data-driven** — `TTSService.initializeProviders()`
+  iterates a `[provider, factory]` registry instead of nine near-identical
+  try/catch blocks (~90 fewer lines; adding a provider is one entry). Behavior
+  is unchanged: a provider that fails to construct is skipped with a warning.
+- **`SynthesizeDialogRequest` is now generic** in its provider options
+  (`SynthesizeDialogRequest<TProviderOptions>`, defaulting to the built-in
+  Vertex/ElevenLabs union). New dialog providers parameterize the generic
+  instead of widening a shared union. Its `audio` now also accepts `sampleRate`.
+- `DialogSpeaker.voice` documentation clarified (Gemini prebuilt name vs.
+  ElevenLabs voice ID).
+
+### Fixed
+- **ElevenLabs dialog output format mismatch** — `synthesizeDialog()` now derives
+  the ElevenLabs `output_format` from the requested `audio.format` (via the same
+  mapping as single-voice synthesis), so `metadata.audioFormat` always matches
+  the bytes returned. Previously a `wav` request returned MP3 bytes while
+  reporting `wav`. `wav` now maps to `wav_48000`.
+- **ElevenLabs dialog now warns when `stylePrompt` is supplied** — it has no
+  ElevenLabs equivalent and was silently dropped; a debug warning surfaces it
+  (helps Gemini→ElevenLabs migration). Express delivery with inline audio tags.
+
 ## [0.15.0] - 2026-05-30
 
 ### Added
