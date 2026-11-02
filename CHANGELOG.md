@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-11-02
+
+### Added
+- **Gemini 3.8 TTS on Vertex AI** — `gemini-3.8-flash-tts` and
+  `gemini-3.8-flash-lite-tts` (single voice and 2-speaker dialog).
+  - Request schema per Google's migration guide: `stylePrompt` →
+    `speechMetadata.style`, dialog turn → one part with
+    `speechMetadata.speaker`, voice → `voiceConfig.voice`. The text is a
+    verbatim transcript; nothing is prepended to it.
+  - New option `languageCode` (BCP-47, sent as `speechConfig.languageCode`).
+  - `temperature` is not sent for 3.8 (the API rejects it); a warning is logged.
+- **Multi-region locations `eu` / `us` / `global`.** The host is resolved per
+  location (`aiplatform.eu.rep.googleapis.com`, `aiplatform.googleapis.com`,
+  `<region>-aiplatform.googleapis.com`). `eu-aiplatform.googleapis.com` is not
+  a valid host (measured: HTTP 400 "Invalid hostname").
+
+### Changed
+- Unary Gemini 3.8 responses are a complete WAV file; the provider unwraps the
+  `data` chunk so MP3/WAV conversion works on PCM as before.
+- Dialog debug logs read the voice from `voiceConfig.voice` as well as
+  `prebuiltVoiceConfig.voiceName`.
+
+### Notes
+- Still **max 2 distinct speakers per request** on 3.8 (measured 2026-11-02:
+  3 speakers → `INVALID_ARGUMENT`).
+- Inline tags are angle-bracket on 3.8 (`<sigh>`); `[sigh]` is not converted.
+- Payload limits (4 KB text / 4 KB style / 8 KB combined) are kept from 3.1 and
+  were not re-verified for 3.8 (Google lists an 8192-token input limit).
+
 ## [0.16.0] - 2026-05-30
 
 ### Changed

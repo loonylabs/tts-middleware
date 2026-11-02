@@ -739,7 +739,15 @@ export interface VertexAITTSProviderOptions {
   model?:
     | 'gemini-2.5-flash-preview-tts'
     | 'gemini-2.5-pro-preview-tts'
-    | 'gemini-3.1-flash-tts-preview';
+    | 'gemini-3.1-flash-tts-preview'
+    | 'gemini-3.8-flash-tts'
+    | 'gemini-3.8-flash-lite-tts';
+
+  /**
+   * BCP-47 language code (Gemini 3.8 TTS only), e.g. 'de-DE'. Optional; sent as
+   * `speechConfig.languageCode`.
+   */
+  languageCode?: string;
 
   /**
    * Natural language style instruction prepended to the text
@@ -772,6 +780,10 @@ export interface VertexAITTSProviderOptions {
    * @description Overrides the constructor region and skips any regionRotation config.
    * Use this when you need to pin a specific request to a specific region.
    *
+   * Gemini 3.8 TTS is served from `global`, `us` and `eu` (multi-region); use
+   * `'eu'` for EU processing. Voice design/replication is `global` only.
+   *
+   * @example 'eu'
    * @example 'europe-west4'
    * @example 'us-central1'
    */

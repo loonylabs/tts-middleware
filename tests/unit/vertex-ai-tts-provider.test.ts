@@ -1424,6 +1424,140 @@ describe('VertexAITTSProvider', () => {
     });
   });
 
+  describe('Gemini 3.8 TTS', () => {
+    /** Minimal RIFF/WAVE: fmt chunk + data chunk carrying `pcm`. */
+    function wavOf(pcm: Buffer): Buffer {
+      const fmt = Buffer.alloc(16);
+      fmt.writeUInt16LE(1, 0); // PCM
+      fmt.writeUInt16LE(1, 2); // mono
+      fmt.writeUInt32LE(24000, 4);
+      fmt.writeUInt32LE(48000, 8);
+      fmt.writeUInt16LE(2, 12);
+      fmt.writeUInt16LE(16, 14);
+      const head = Buffer.alloc(12);
+      head.write('RIFF', 0, 'latin1');
+      head.writeUInt32LE(4 + 8 + 16 + 8 + pcm.length, 4);
+      head.write('WAVE', 8, 'latin1');
+      const chunk = (id: string, body: Buffer) => {
+        const h = Buffer.alloc(8);
+        h.write(id, 0, 'latin1');
+        h.writeUInt32LE(body.length, 4);
+        return Buffer.concat([h, body]);
+      };
+      return Buffer.concat([head, chunk('fmt ', fmt), chunk('data', pcm)]);
+    }
+
+    function wavResponse(pcm: Buffer) {
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: wavOf(pcm).toString('base64') } }] } }],
+        }),
+      };
+    }
+
+    const sentBody = () => JSON.parse((fetch as jest.Mock).mock.calls[0][1].body);
+    const sentUrl = () => (fetch as jest.Mock).mock.calls[0][0] as string;
+
+    test('eu location uses the multi-region host (eu-aiplatform.googleapis.com is invalid)', async () => {
+      const provider = new VertexAITTSProvider();
+      await provider.synthesize('Hallo', 'Kore', {
+        text: 'Hallo', voice: { id: 'Kore' }, audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.8-flash-lite-tts', region: 'eu' },
+      });
+      expect(sentUrl()).toBe(
+        'https://aiplatform.eu.rep.googleapis.com/v1/projects/test-project/locations/eu/publishers/google/models/gemini-3.8-flash-lite-tts:generateContent',
+      );
+    });
+
+    test('global location uses the plain host, regional keeps the prefixed host', async () => {
+      const provider = new VertexAITTSProvider();
+      const call = async (region: string) => {
+        (fetch as jest.Mock).mockClear();
+        await provider.synthesize('Hi', 'Kore', {
+          text: 'Hi', voice: { id: 'Kore' }, audio: { format: 'wav' },
+          providerOptions: { model: 'gemini-3.8-flash-tts', region },
+        });
+        return sentUrl();
+      };
+      expect(await call('global')).toContain('https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/');
+      expect(await call('europe-west4')).toContain('https://europe-west4-aiplatform.googleapis.com/');
+    });
+
+    test('single voice: style in speechMetadata, voice under voiceConfig.voice, no temperature, text verbatim', async () => {
+      const provider = new VertexAITTSProvider();
+      await provider.synthesize('Es war <short pause> einmal.', 'Kore', {
+        text: 'Es war <short pause> einmal.', voice: { id: 'Kore' }, audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.8-flash-tts', stylePrompt: 'Warm.', languageCode: 'de-DE', temperature: 1.2, region: 'eu' },
+      });
+      const body = sentBody();
+      expect(body.contents[0].parts).toEqual([
+        { text: 'Es war <short pause> einmal.', speechMetadata: { style: 'Warm.' } },
+      ]);
+      expect(body.generationConfig.speechConfig).toEqual({ languageCode: 'de-DE', voiceConfig: { voice: 'Kore' } });
+      expect(body.generationConfig.temperature).toBeUndefined();
+    });
+
+    test('2.5 / 3.1 requests keep the legacy shape (style prepended, prebuiltVoiceConfig)', async () => {
+      const provider = new VertexAITTSProvider();
+      await provider.synthesize('Hallo', 'Kore', {
+        text: 'Hallo', voice: { id: 'Kore' }, audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.1-flash-tts-preview', stylePrompt: 'Warm.' },
+      });
+      const body = sentBody();
+      expect(body.contents[0].parts).toEqual([{ text: 'Warm. Hallo' }]);
+      expect(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe('Kore');
+    });
+
+    test('unwraps the WAV container so only PCM goes on to conversion', async () => {
+      const pcm = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+      (fetch as jest.Mock).mockResolvedValueOnce(wavResponse(pcm));
+      const provider = new VertexAITTSProvider();
+      const res = await provider.synthesize('Hi', 'Kore', {
+        text: 'Hi', voice: { id: 'Kore' }, audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.8-flash-lite-tts', region: 'eu' },
+      });
+      // wav output = 44-byte header + the PCM, i.e. exactly one header (not two)
+      expect(res.audio.length).toBe(44 + pcm.length);
+      expect(res.audio.subarray(44).equals(pcm)).toBe(true);
+    });
+
+    test('dialog: one part per turn with speechMetadata.speaker, voices under voiceConfig.voice, no speaker prefix', async () => {
+      const provider = new VertexAITTSProvider();
+      await provider.synthesizeDialog({
+        speakers: [{ speaker: 'Erzaehler', voice: 'Charon' }, { speaker: 'Fuchs', voice: 'Puck' }],
+        segments: [{ stylePrompt: 'Lebendig.', turns: [
+          { speaker: 'Erzaehler', text: 'Er sagte:' },
+          { speaker: 'Fuchs', text: 'Hallo?' },
+        ] }],
+        audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.8-flash-tts', region: 'eu' },
+      });
+      const body = sentBody();
+      expect(body.contents[0].parts).toEqual([
+        { text: 'Er sagte:', speechMetadata: { style: 'Lebendig.', speaker: 'Erzaehler' } },
+        { text: 'Hallo?', speechMetadata: { style: 'Lebendig.', speaker: 'Fuchs' } },
+      ]);
+      expect(body.generationConfig.speechConfig.multiSpeakerVoiceConfig.speakerVoiceConfigs).toEqual([
+        { speaker: 'Erzaehler', voiceConfig: { voice: 'Charon' } },
+        { speaker: 'Fuchs', voiceConfig: { voice: 'Puck' } },
+      ]);
+    });
+
+    test('dialog with a single speaker uses voiceConfig and omits speaker metadata', async () => {
+      const provider = new VertexAITTSProvider();
+      await provider.synthesizeDialog({
+        speakers: [{ speaker: 'Erzaehler', voice: 'Charon' }],
+        segments: [{ turns: [{ speaker: 'Erzaehler', text: 'Hallo.' }] }],
+        audio: { format: 'wav' },
+        providerOptions: { model: 'gemini-3.8-flash-tts' },
+      });
+      const body = sentBody();
+      expect(body.contents[0].parts).toEqual([{ text: 'Hallo.' }]);
+      expect(body.generationConfig.speechConfig).toEqual({ voiceConfig: { voice: 'Charon' } });
+    });
+  });
+
   describe('Dialog capability', () => {
     test('implements SupportsDialog with 2-speaker capabilities', () => {
       const provider = new VertexAITTSProvider();

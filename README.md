@@ -401,17 +401,18 @@ LOG_LEVEL=info
 
 | Feature | Details |
 |---------|---------|
-| **Models** | `gemini-2.5-flash-preview-tts` (budget, fast), `gemini-2.5-pro-preview-tts` (premium), `gemini-3.1-flash-tts-preview` (audio tags + multi-speaker) |
+| **Models** | `gemini-2.5-flash-preview-tts` (budget, fast), `gemini-2.5-pro-preview-tts` (premium), `gemini-3.1-flash-tts-preview` (audio tags + multi-speaker), `gemini-3.8-flash-tts` (flagship, 130 languages) and `gemini-3.8-flash-lite-tts` (high volume, 101 languages) — both 3.8 models use the same request schema |
 | **Languages** | 90+ with auto-detection (70+ for Gemini 3.1) |
 | **Voices** | 30 multilingual: Kore, Puck, Charon, Zephyr, Fenrir, Sulafat, Aoede, etc. |
 | **Style Control** | Natural language `stylePrompt` + inline audio tags (Gemini 3.1): `[sigh]`, `[whispering]`, `[laughing]`, `[short pause]`, … |
 | **Dialog Mode** | `synthesizeDialog()` for multi-segment, multi-speaker audio in a single call — aggregated billing, segment-level style prompts. **Max 2 distinct speakers per segment** (Vertex AI limit) — split scenes with a narrator into alternating solo/duo segments |
 | **Audio** | MP3 (via ffmpeg — auto-detected from `ffmpeg-static`, `FFMPEG_PATH`, config, or system PATH), WAV (fallback) |
 | **Auth** | Service Account OAuth2 (reuses `GOOGLE_APPLICATION_CREDENTIALS`) |
-| **Region** | `VERTEX_AI_TTS_REGION` env var (default: `us-central1`) |
+| **Region** | `VERTEX_AI_TTS_REGION` env var (default: `us-central1`). Gemini 3.8 is served from `global`, `us` and `eu` (multi-region, measured: `eu` → `aiplatform.eu.rep.googleapis.com`); use `eu` for EU processing. Voice design/replication is `global` only. |
+| **Gemini 3.8 schema** | `stylePrompt` is sent as `speechMetadata.style` (not prepended to the text — the text is spoken verbatim); optional `languageCode` (e.g. `de-DE`); voices as `voiceConfig.voice`. `temperature` is rejected by the API and therefore not sent (a warning is logged). Inline tags use angle brackets (`<sigh>`, `<laugh>`, `<short pause>`) — the middleware does **not** convert `[sigh]`. Dialog: one part per turn with `speechMetadata.speaker`, still **exactly 2 speakers per request** (measured: 3 → `INVALID_ARGUMENT`). Unary responses are WAV; the provider unwraps them to PCM. |
 | **Limits** | 4 KB text + 4 KB stylePrompt, 8 KB combined per request (enforced client-side with typed `PayloadTooLargeError`) |
-| **Pricing** | $0.50/M input + $10/M audio output tokens (Flash 2.5); $1.00/M + $20/M (Pro 2.5, Flash 3.1) |
-| **EU Compliance** | Preview models currently `us-central1` only — no EU data residency yet |
+| **Pricing** | $0.50/M input + $10/M audio output tokens (Flash 2.5); $1.00/M + $20/M (Pro 2.5, Flash 3.1); Gemini 3.8 Flash $0.50/M + $9/M and Flash-Lite $0.50/M + $6/M through 2026-12-31, doubling from 2027-01-01 ([Google pricing](https://cloud.google.com/model-garden/pricing), checked 2026-11-02) |
+| **EU Compliance** | Gemini 3.8: `region: 'eu'` (multi-region, per Google's model pages "ML processing: eu"; endpoint call verified 2026-11-02). 2.5/3.1 previews: `us-central1` / `global` only |
 
 #### Dialog Mode example (Gemini 3.1 Flash TTS)
 

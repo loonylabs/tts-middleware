@@ -124,6 +124,58 @@ const DEFAULT_SAMPLE_RATE = 24000;
 const DEFAULT_REGION = 'us-central1';
 
 /**
+ * Gemini 3.8 TTS models use a different request schema than 2.5 / 3.1:
+ * style and speaker travel in `speechMetadata` per part (not in the text),
+ * the voice is `voiceConfig.voice`, and `temperature`/`topP`/`topK` are
+ * rejected. Unary responses are a complete WAV file instead of raw PCM.
+ * @see https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/text-to-speech/migration-guide
+ */
+const GEMINI_38_MODELS: ReadonlySet<string> = new Set([
+  'gemini-3.8-flash-tts',
+  'gemini-3.8-flash-lite-tts',
+]);
+
+function isGemini38Model(model: string | undefined): boolean {
+  return !!model && GEMINI_38_MODELS.has(model);
+}
+
+/**
+ * Resolve the Vertex AI host for a location.
+ *
+ * Multi-region `eu` / `us` are served from `aiplatform.<eu|us>.rep.googleapis.com`
+ * (measured: `eu-aiplatform.googleapis.com` answers 400 "Invalid hostname"),
+ * `global` from `aiplatform.googleapis.com`, regional locations from
+ * `<region>-aiplatform.googleapis.com`.
+ */
+function resolveVertexHost(location: string): string {
+  if (location === 'eu' || location === 'us') return `aiplatform.${location}.rep.googleapis.com`;
+  if (location === 'global') return 'aiplatform.googleapis.com';
+  return `${location}-aiplatform.googleapis.com`;
+}
+
+/**
+ * Extract raw PCM from a WAV container (walks RIFF chunks to the `data` chunk).
+ * Gemini 3.8 unary responses are `audio/wav`; the rest of the pipeline works on PCM.
+ */
+function wavToPcm(wav: Buffer): Buffer {
+  if (wav.length < 12 || wav.toString('latin1', 0, 4) !== 'RIFF' || wav.toString('latin1', 8, 12) !== 'WAVE') {
+    throw new Error('Vertex AI returned audio/wav that is not a RIFF/WAVE file');
+  }
+  let offset = 12;
+  while (offset + 8 <= wav.length) {
+    const id = wav.toString('latin1', offset, offset + 4);
+    const size = wav.readUInt32LE(offset + 4);
+    if (id === 'data') {
+      // A streaming-style header may carry 0 / 0xFFFFFFFF as size: take the rest.
+      const end = size === 0 || size === 0xffffffff ? wav.length : Math.min(offset + 8 + size, wav.length);
+      return wav.subarray(offset + 8, end);
+    }
+    offset += 8 + size + (size % 2);
+  }
+  throw new Error('WAV file has no data chunk');
+}
+
+/**
  * Vertex AI Gemini TTS payload byte limits (UTF-8)
  *
  * @description Google rejects requests larger than these limits. We enforce them
@@ -551,6 +603,26 @@ export class VertexAITTSProvider
     voiceId: string,
     options: VertexAITTSProviderOptions
   ): Record<string, unknown> {
+    if (isGemini38Model(options.model)) {
+      this.assertPayloadWithinLimits(text, options.stylePrompt);
+      this.warnIfTemperatureIgnored(options.temperature);
+      return {
+        contents: [
+          {
+            role: 'user',
+            parts: [this.buildPart38(text, { style: options.stylePrompt })],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            ...(options.languageCode ? { languageCode: options.languageCode } : {}),
+            voiceConfig: { voice: voiceId },
+          },
+        },
+      };
+    }
+
     const synthesisText = options.stylePrompt
       ? `${options.stylePrompt} ${text}`
       : text;
@@ -599,6 +671,10 @@ export class VertexAITTSProvider
     options: VertexAITTSProviderOptions,
     segmentIndex: number,
   ): Record<string, unknown> {
+    if (isGemini38Model(options.model)) {
+      return this.buildDialogRequest38(segment, speakers, options, segmentIndex);
+    }
+
     // The `"Speaker: "` prefix is ONLY needed for multi-speaker segments, where
     // Gemini uses the label to look up the matching `speakerVoiceConfigs` entry
     // and route each turn to the correct voice. For single-speaker segments
@@ -681,6 +757,83 @@ export class VertexAITTSProvider
     };
   }
 
+  /** One Gemini 3.8 content part: literal transcript + optional speechMetadata. */
+  private buildPart38(
+    text: string,
+    meta: { style?: string; speaker?: string },
+  ): Record<string, unknown> {
+    const speechMetadata: Record<string, string> = {};
+    if (meta.style) speechMetadata.style = meta.style;
+    if (meta.speaker) speechMetadata.speaker = meta.speaker;
+    return Object.keys(speechMetadata).length > 0 ? { text, speechMetadata } : { text };
+  }
+
+  private warnIfTemperatureIgnored(temperature: number | undefined): void {
+    if (typeof temperature === 'number') {
+      this.log('warn', 'temperature is rejected by Gemini 3.8 TTS (INVALID_ARGUMENT) and was not sent', {
+        temperature,
+      });
+    }
+  }
+
+  /**
+   * Gemini 3.8 dialog segment: one part per turn with `speechMetadata.speaker`,
+   * voices under `voiceConfig.voice`. The segment style is repeated on every
+   * part because style is per part. No "Speaker: " text prefix (text is verbatim).
+   */
+  private buildDialogRequest38(
+    segment: DialogSegment,
+    speakers: DialogSpeaker[],
+    options: VertexAITTSProviderOptions,
+    segmentIndex: number,
+  ): Record<string, unknown> {
+    const usedAliases = new Set(segment.turns.map((t) => t.speaker));
+    const usedSpeakers = speakers.filter((s) => usedAliases.has(s.speaker));
+
+    if (usedSpeakers.length === 0) {
+      throw new InvalidConfigError(
+        this.providerName,
+        `Segment #${segmentIndex} has no recognized speakers`,
+      );
+    }
+    if (usedSpeakers.length > 2) {
+      throw new InvalidConfigError(
+        this.providerName,
+        `Segment #${segmentIndex} uses ${usedSpeakers.length} distinct speakers, ` +
+          `but Vertex AI multi-speaker TTS supports at most 2 speakers per request. ` +
+          `Split the segment so each sub-segment has at most 2 speakers.`,
+      );
+    }
+
+    const turnsText = segment.turns.map((t) => t.text).join('\n');
+    this.assertPayloadWithinLimits(turnsText, segment.stylePrompt, segmentIndex);
+    this.warnIfTemperatureIgnored(segment.temperature ?? options.temperature);
+
+    const multi = usedSpeakers.length > 1;
+    const parts = segment.turns.map((t) =>
+      this.buildPart38(t.text, { style: segment.stylePrompt, speaker: multi ? t.speaker : undefined }),
+    );
+
+    const speechConfig: Record<string, unknown> = {
+      ...(options.languageCode ? { languageCode: options.languageCode } : {}),
+      ...(multi
+        ? {
+            multiSpeakerVoiceConfig: {
+              speakerVoiceConfigs: usedSpeakers.map((s) => ({
+                speaker: s.speaker,
+                voiceConfig: { voice: s.voice },
+              })),
+            },
+          }
+        : { voiceConfig: { voice: usedSpeakers[0].voice } }),
+    };
+
+    return {
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig },
+    };
+  }
+
   /**
    * Build a debug log context for one dialog segment.
    *
@@ -704,21 +857,23 @@ export class VertexAITTSProvider
     let requestShape: 'single-voice' | 'multi-speaker' = 'single-voice';
     let loggedSpeakers: Array<{ speaker: string; voice: string }> = [];
 
+    // 2.5 / 3.1 carry the voice in `prebuiltVoiceConfig.voiceName`, 3.8 in `voice`.
+    type LoggedVoiceConfig = { voice?: string; prebuiltVoiceConfig?: { voiceName?: string } };
+    const voiceOf = (c: LoggedVoiceConfig | undefined): string | undefined =>
+      c?.voice ?? c?.prebuiltVoiceConfig?.voiceName;
+
     const multi = speechConfig?.multiSpeakerVoiceConfig as
-      | { speakerVoiceConfigs?: Array<{ speaker: string; voiceConfig?: { prebuiltVoiceConfig?: { voiceName?: string } } }> }
+      | { speakerVoiceConfigs?: Array<{ speaker: string; voiceConfig?: LoggedVoiceConfig }> }
       | undefined;
 
     if (multi?.speakerVoiceConfigs && multi.speakerVoiceConfigs.length > 0) {
       requestShape = 'multi-speaker';
       loggedSpeakers = multi.speakerVoiceConfigs.map((c) => ({
         speaker: c.speaker,
-        voice: c.voiceConfig?.prebuiltVoiceConfig?.voiceName ?? '(unknown)',
+        voice: voiceOf(c.voiceConfig) ?? '(unknown)',
       }));
     } else {
-      const single = speechConfig?.voiceConfig as
-        | { prebuiltVoiceConfig?: { voiceName?: string } }
-        | undefined;
-      const voiceName = single?.prebuiltVoiceConfig?.voiceName;
+      const voiceName = voiceOf(speechConfig?.voiceConfig as LoggedVoiceConfig | undefined);
       // Find the alias that maps to this voice (for readability in the log)
       const usedAliases = new Set(segment.turns.map((t) => t.speaker));
       const usedSpeaker = speakers.find((s) => usedAliases.has(s.speaker) && s.voice === voiceName);
@@ -873,7 +1028,7 @@ export class VertexAITTSProvider
     const accessToken = await this.getAccessToken();
 
     const projectId = this.config.projectId;
-    const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
+    const url = `https://${resolveVertexHost(region)}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
 
     const logEnabled = !!logContext && this.isRequestLoggingEnabled();
     const timestamp = new Date().toISOString();
@@ -978,7 +1133,11 @@ export class VertexAITTSProvider
       throw new Error('Vertex AI API returned no audio data');
     }
 
-    const pcmBuffer = Buffer.from(inlineData.data, 'base64');
+    let pcmBuffer: Buffer = Buffer.from(inlineData.data, 'base64');
+    // Gemini 3.8 unary responses are a WAV file; unwrap to the PCM the rest expects.
+    if (inlineData.mimeType?.toLowerCase().includes('wav')) {
+      pcmBuffer = wavToPcm(pcmBuffer);
+    }
 
     if (logEnabled) {
       this.logRequest({
